@@ -1,9 +1,15 @@
 """Application error types and global FastAPI exception handlers.
 
-Every deliberate failure raises an `AppError` subclass; the handlers below
-map them to ONE uniform JSON envelope so the frontend only needs one parser:
+Every deliberate failure raises an ``AppError`` subclass; the handlers below
+map them to ONE uniform JSON envelope:
 
-    {"error": {"code": "INVALID_IMAGE", "message": "...", "details": null}}
+    {
+      "error": {
+        "code": "INVALID_IMAGE",
+        "message": "...",
+        "details": null
+      }
+    }
 """
 from __future__ import annotations
 
@@ -20,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Error types
+# Error types — codes and statuses are part of the public API contract.
 # ---------------------------------------------------------------------------
 
 
@@ -46,12 +52,6 @@ class FileTooLargeError(AppError):
     status_code = getattr(status, "HTTP_413_CONTENT_TOO_LARGE", 413)
     code = "FILE_TOO_LARGE"
     default_message = "Uploaded file exceeds the maximum allowed size."
-
-
-class StorageError(AppError):
-    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-    code = "STORAGE_ERROR"
-    default_message = "The image could not be stored."  # never include paths
 
 
 class PredictionNotFoundError(AppError):
@@ -81,11 +81,52 @@ class NotImplementedFeatureError(AppError):
 FeatureNotImplementedError = NotImplementedFeatureError
 
 
+class StorageError(AppError):
+    """Internal storage failure. Never leaks filesystem paths to clients."""
+
+    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+    code = "STORAGE_ERROR"
+    default_message = "The uploaded file could not be stored."
+
+
 # ---------------------------------------------------------------------------
-# Helpers / handlers
+# Database errors (added in the Database Integration milestone)
 # ---------------------------------------------------------------------------
 
-_HTTP_CODE_MAP = {
+
+class DatabaseNotConfiguredError(AppError):
+    """Raised when DATABASE_URL is missing at app startup."""
+
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    code = "DATABASE_NOT_CONFIGURED"
+    default_message = "The database is not configured."
+
+
+class DatabaseUnavailableError(AppError):
+    """Raised when the database cannot be reached (e.g. /health/db)."""
+
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    code = "DATABASE_UNAVAILABLE"
+    default_message = "The database is currently unavailable."
+
+
+class PersistenceError(AppError):
+    """Raised when a database write fails for a reason other than 'not found'.
+
+    The cause (an ``SQLAlchemyError``) is chained on the server side for logs,
+    but the client only ever sees the sanitised default message.
+    """
+
+    status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+    code = "PERSISTENCE_ERROR"
+    default_message = "The record could not be saved."
+
+
+# ---------------------------------------------------------------------------
+# Handlers
+# ---------------------------------------------------------------------------
+
+_HTTP_CODE_MAP: dict[int, str] = {
     400: "BAD_REQUEST",
     401: "UNAUTHORIZED",
     403: "FORBIDDEN",
@@ -95,7 +136,7 @@ _HTTP_CODE_MAP = {
 }
 
 
-def _error_payload(code: str, message: str, details: Any = None) -> dict[str, Any]:
+def _envelope(code: str, message: str, details: Any = None) -> dict[str, Any]:
     """Build the standard error envelope (details always present)."""
     return {"error": {"code": code, "message": message, "details": details}}
 
@@ -104,22 +145,26 @@ def register_exception_handlers(app: FastAPI) -> None:
     """Attach the global exception handlers to the application."""
 
     @app.exception_handler(AppError)
-    async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
+    async def _handle_app_error(request: Request, exc: AppError) -> JSONResponse:
         logger.warning(
-            "%s %s -> %s (%s)", request.method, request.url.path, exc.status_code, exc.code
+            "%s %s -> %s (%s)",
+            request.method,
+            request.url.path,
+            exc.status_code,
+            exc.code,
         )
         return JSONResponse(
             status_code=exc.status_code,
-            content=_error_payload(exc.code, exc.message),
+            content=_envelope(exc.code, exc.message),
         )
 
     @app.exception_handler(RequestValidationError)
-    async def handle_validation_error(
+    async def _handle_validation_error(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
         return JSONResponse(
             status_code=getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422),
-            content=_error_payload(
+            content=_envelope(
                 "VALIDATION_ERROR",
                 "Request validation failed.",
                 jsonable_encoder(exc.errors()),
@@ -127,20 +172,20 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(StarletteHTTPException)
-    async def handle_http_exception(
+    async def _handle_http_exception(
         request: Request, exc: StarletteHTTPException
     ) -> JSONResponse:
         message = exc.detail if isinstance(exc.detail, str) else "Request failed."
         code = _HTTP_CODE_MAP.get(exc.status_code, "HTTP_ERROR")
         return JSONResponse(
             status_code=exc.status_code,
-            content=_error_payload(code, message),
+            content=_envelope(code, message),
         )
 
     @app.exception_handler(Exception)
-    async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+    async def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
         logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=_error_payload("INTERNAL_ERROR", "Internal server error."),
+            content=_envelope("INTERNAL_ERROR", "Internal server error."),
         )
