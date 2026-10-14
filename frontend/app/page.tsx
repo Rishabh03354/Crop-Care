@@ -2,13 +2,16 @@
 
 import { ChangeEvent, DragEvent, useRef, useState } from "react";
 import Link from "next/link";
-import { uploadCropImage } from "../lib/api";
+import { uploadCropImage, getPrediction } from "../lib/api";
 import { validateCropImage } from "../lib/imageValidation";
 
 interface PredictionResult {
   prediction_id: string;
   status: string;
   filename?: string;
+  crop?: string | null;
+  disease?: string | null;
+  confidence?: number | null;
 }
 
 export default function Home() {
@@ -17,6 +20,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisStep, setAnalysisStep] = useState<"idle" | "uploading" | "persisting" | "done">("idle");
   const [isValidating, setIsValidating] = useState(false);
   const [qualityError, setQualityError] = useState<string | null>(null);
   const [predictionResult, setPredictionResult] = useState<PredictionResult | null>(null);
@@ -28,6 +32,7 @@ export default function Home() {
     setError("");
     setQualityError(null);
     setPredictionResult(null);
+    setAnalysisStep("idle");
 
     const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
     const maxFileSize = 10 * 1024 * 1024;
@@ -108,6 +113,7 @@ export default function Home() {
     setQualityError(null);
     setIsAnalyzing(false);
     setIsValidating(false);
+    setAnalysisStep("idle");
     setPredictionResult(null);
 
     if (fileInputRef.current) {
@@ -120,7 +126,7 @@ export default function Home() {
     fileInputRef.current?.click();
   };
 
-  // Upload image to backend
+  // Upload image to backend with full API communication
   const handleAnalyze = async () => {
     if (!selectedImage) {
       setError("Please select a crop image first.");
@@ -134,17 +140,47 @@ export default function Home() {
 
     setError("");
     setIsAnalyzing(true);
+    setAnalysisStep("uploading");
     setPredictionResult(null);
 
     try {
+      // 1. Dispatch to FastAPI POST /api/v1/predictions
       const result = await uploadCropImage(selectedImage);
+      setAnalysisStep("persisting");
+
+      // 2. Fetch persisted database record via GET /api/v1/predictions/{id}
+      let cropDiagnosis: string | null = null;
+      let diseaseDiagnosis: string | null = null;
+      let confidenceRating: number | null = null;
+      let currentStatus: string = result.status;
+
+      try {
+        const persisted = await getPrediction(result.prediction_id);
+        currentStatus = persisted.status || currentStatus;
+        cropDiagnosis = persisted.crop;
+        diseaseDiagnosis = persisted.disease;
+        confidenceRating = persisted.confidence;
+      } catch {
+        // Fall back gracefully to result data
+      }
+
+      setAnalysisStep("done");
       setIsAnalyzing(false);
-      setPredictionResult(result);
+      setPredictionResult({
+        prediction_id: result.prediction_id,
+        status: currentStatus,
+        filename: result.filename,
+        crop: cropDiagnosis,
+        disease: diseaseDiagnosis,
+        confidence: confidenceRating,
+      });
     } catch (err) {
       console.error("Crop image upload failed:", err);
       setIsAnalyzing(false);
+      setAnalysisStep("idle");
       setError(
-        "Unable to upload the crop image. Please make sure the backend server is running (FastAPI on http://127.0.0.1:8000)."
+        (err as Error).message ||
+          "Unable to communicate with the backend. Please ensure the FastAPI server is running on http://127.0.0.1:8000."
       );
     }
   };
@@ -257,7 +293,7 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-green-600 font-bold">✓</span>
-              <span>FastAPI ML Integration</span>
+              <span>FastAPI & PostgreSQL Integration</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-green-600 font-bold">✓</span>
@@ -326,7 +362,7 @@ export default function Home() {
 
             <p className="mx-auto mt-4 max-w-2xl text-slate-600">
               Upload a clear image of the affected crop or leaf. Our system
-              connects to the backend ML pipeline for instant diagnostics.
+              connects to the backend ML & database pipeline for instant diagnostics.
             </p>
           </div>
 
@@ -444,7 +480,11 @@ export default function Home() {
                         {isAnalyzing ? (
                           <>
                             <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                            <span>Uploading & Analyzing...</span>
+                            <span>
+                              {analysisStep === "uploading"
+                                ? "Uploading to FastAPI..."
+                                : "Persisting in Database..."}
+                            </span>
                           </>
                         ) : isValidating ? (
                           <span>Checking quality...</span>
@@ -468,14 +508,14 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Prediction Result Card */}
+                {/* Prediction Result Card with Full API Details */}
                 {predictionResult && (
                   <div className="mt-6 rounded-2xl border border-emerald-200 bg-white p-6 shadow-sm">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="text-xl">✅</span>
                         <h4 className="font-bold text-slate-900">
-                          Upload Successful & Request Dispatched
+                          Communication Established & Request Dispatched
                         </h4>
                       </div>
                       <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
@@ -483,29 +523,30 @@ export default function Home() {
                       </span>
                     </div>
 
-                    <div className="mt-3 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
-                      <p className="text-slate-600">
-                        <strong>Prediction ID:</strong>{" "}
-                        <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-slate-800">
+                    <div className="mt-4 grid grid-cols-1 gap-3 rounded-xl bg-slate-50 p-4 text-xs sm:grid-cols-2">
+                      <div>
+                        <span className="font-semibold text-slate-500 block">Prediction UUID:</span>
+                        <code className="font-mono text-slate-800 font-bold break-all">
                           {predictionResult.prediction_id}
                         </code>
-                      </p>
+                      </div>
                       {predictionResult.filename && (
-                        <p className="text-slate-600">
-                          <strong>Storage File:</strong> {predictionResult.filename}
-                        </p>
+                        <div>
+                          <span className="font-semibold text-slate-500 block">Server Storage Filename:</span>
+                          <span className="font-mono text-slate-700 break-all">{predictionResult.filename}</span>
+                        </div>
                       )}
                     </div>
 
                     <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
                       <p className="text-xs text-slate-500">
-                        View complete environmental risk, treatment protocols, and scan records:
+                        Track diagnosis status, weather risk, and treatment plans:
                       </p>
                       <Link
                         href="/dashboard"
-                        className="rounded-lg bg-green-700 px-4 py-2 text-xs font-bold text-white transition hover:bg-green-800"
+                        className="rounded-lg bg-green-700 px-4 py-2 text-xs font-bold text-white transition hover:bg-green-800 shadow-sm"
                       >
-                        Open in Farmer Dashboard →
+                        Open Farmer Dashboard →
                       </Link>
                     </div>
                   </div>
@@ -538,9 +579,9 @@ export default function Home() {
 
             <div className="rounded-2xl bg-white p-7 shadow-sm">
               <div className="text-3xl">🤖</div>
-              <h3 className="mt-5 text-xl font-bold">AI Detection</h3>
+              <h3 className="mt-5 text-xl font-bold">FastAPI Integration</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                Uploaded images connect directly to the FastAPI deep learning model for precision disease diagnosis.
+                Uploaded images connect directly to the FastAPI REST API and PostgreSQL database pipeline.
               </p>
             </div>
 

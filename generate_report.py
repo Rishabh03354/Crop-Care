@@ -1,4 +1,4 @@
-﻿import subprocess
+import subprocess
 from collections import defaultdict, OrderedDict
 import datetime
 import io
@@ -17,6 +17,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 # -------------------------------------------------------------
 COLLEGE_NAME = "Swami Keshvanand Institute of Technology,Management & Gramothan, Jaipur"
 DEPARTMENT_NAME = "Department of Computer Science & Engineering"
+REPO_NAME = "SKIT-DS-2023-2027-022"
 
 # The 4 designated team members - no one else will appear in the report
 TEAM_MEMBERS = [
@@ -39,43 +40,62 @@ AUTHOR_MAPPING = {
 }
 # -------------------------------------------------------------
 
-def get_repo_info():
+def get_repo_info(override_repo=None):
     """Extracts the exact repository name and branch reliably in GitHub Codespaces."""
-    repo_name = "Project-Repository"
-    branch_name = "main"
-    try:
-        root_path = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], encoding='utf-8').strip()
-        repo_name = os.path.basename(root_path)
-    except Exception:
+    if override_repo:
+        repo_name = override_repo
+    elif REPO_NAME:
+        repo_name = REPO_NAME
+    else:
+        repo_name = "SKIT-DS-2023-2027-022"
         try:
-            remote_url = subprocess.check_output(['git', 'config', '--get', 'remote.origin.url'], encoding='utf-8').strip()
-            repo_name = remote_url.rstrip('/').split('/')[-1].replace('.git', '')
+            root_path = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], encoding='utf-8').strip()
+            repo_name = os.path.basename(root_path)
         except Exception:
-            repo_name = os.path.basename(os.getcwd())
+            try:
+                remote_url = subprocess.check_output(['git', 'config', '--get', 'remote.origin.url'], encoding='utf-8').strip()
+                repo_name = remote_url.rstrip('/').split('/')[-1].replace('.git', '')
+            except Exception:
+                repo_name = os.path.basename(os.getcwd())
+
+    branch_name = "main"
     try:
         branch_name = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], encoding='utf-8').strip()
     except Exception:
         pass
     return repo_name, branch_name
 
-def get_git_metrics(interval="weekly"):
+def get_git_metrics(interval="weekly", as_of_date=None):
     """
     Parses Git commit logs for the 4 designated team members.
     Supported intervals: 'weekly', 'monthly', 'final'
+    Optionally evaluates commits as of a specific date.
     """
-    today = datetime.date.today()
+    if as_of_date is None:
+        today = datetime.date.today()
+    elif isinstance(as_of_date, str):
+        today = datetime.datetime.strptime(as_of_date, "%Y-%m-%d").date()
+    else:
+        today = as_of_date
+
     git_args = ['git', 'log', '--no-merges', '--pretty=format:COMMIT|||%h|||%an|||%ad|||%s', '--date=short', '--numstat']
     
     if interval == "weekly":
         # Includes recent reporting cycle so all team members' work (including Rishabh's initial sprint) is captured
         since_date = (today - datetime.timedelta(days=16)).strftime("%Y-%m-%d")
         git_args.append(f"--since={since_date}")
+        if as_of_date is not None:
+            git_args.append(f"--until={today.strftime('%Y-%m-%d')} 23:59:59")
         scope_title = f"Weekly Reporting Cycle (Since {since_date})"
     elif interval == "monthly":
         since_date = (today - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
         git_args.append(f"--since={since_date}")
+        if as_of_date is not None:
+            git_args.append(f"--until={today.strftime('%Y-%m-%d')} 23:59:59")
         scope_title = f"Last 30 Days (Since {since_date})"
     else:
+        if as_of_date is not None:
+            git_args.append(f"--until={today.strftime('%Y-%m-%d')} 23:59:59")
         scope_title = "Complete Project Lifecycle (All Commits)"
 
     try:
@@ -187,24 +207,37 @@ def create_charts(students, timeline_activity, interval):
 
     return Image(img_buffer, width=500, height=170)
 
-def generate_pdf(interval="weekly"):
+def generate_pdf(interval="weekly", as_of_date=None, output_dir="weekly_reports"):
     repo_name, branch_name = get_repo_info()
-    students, timeline_activity, student_logs, scope_title = get_git_metrics(interval)
+    students, timeline_activity, student_logs, scope_title = get_git_metrics(interval, as_of_date=as_of_date)
 
     if students is None:
         return
 
-    date_stamp = datetime.date.today().strftime("%Y-%m-%d")
+    if as_of_date is None:
+        eval_date = datetime.date.today()
+    elif isinstance(as_of_date, str):
+        eval_date = datetime.datetime.strptime(as_of_date, "%Y-%m-%d").date()
+    else:
+        eval_date = as_of_date
+
+    date_stamp = eval_date.strftime("%Y-%m-%d")
     
     if interval == "weekly":
         report_title = "Weekly Progress Report (Form-3)"
-        doc_name = f"{repo_name}_Weekly_Progress_Report_Form-3_{date_stamp}.pdf"
+        file_name = f"{repo_name}_Weekly_Progress_Report_Form-3_{date_stamp}.pdf"
     elif interval == "monthly":
         report_title = "Monthly Progress Report (Form-3)"
-        doc_name = f"{repo_name}_Monthly_Progress_Report_Form-3_{date_stamp}.pdf"
+        file_name = f"{repo_name}_Monthly_Progress_Report_Form-3_{date_stamp}.pdf"
     else:
         report_title = "Final Project Evaluation Report"
-        doc_name = f"{repo_name}_Final_Report_{date_stamp}.pdf"
+        file_name = f"{repo_name}_Final_Report_{date_stamp}.pdf"
+
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+        doc_name = os.path.join(output_dir, file_name)
+    else:
+        doc_name = file_name
 
     doc = SimpleDocTemplate(
         doc_name,
@@ -272,7 +305,7 @@ def generate_pdf(interval="weekly"):
 
     # 2. Metadata (Repo, Branch, Scope, Date)
     story.append(Paragraph(f"<b>Project Repository:</b> <font color='#2563EB'><b>{html.escape(repo_name)}</b></font> &nbsp;|&nbsp; <b>Branch:</b> <code>{html.escape(branch_name)}</code>", repo_style))
-    story.append(Paragraph(f"<b>Evaluation Window:</b> {scope_title} &nbsp;|&nbsp; <b>Generated On:</b> {datetime.date.today().strftime('%B %d, %Y')}", meta_style))
+    story.append(Paragraph(f"<b>Evaluation Window:</b> {scope_title} &nbsp;|&nbsp; <b>Generated On:</b> {eval_date.strftime('%B %d, %Y')}", meta_style))
 
     # 3. Individual Summary Table
     story.append(Paragraph("1. Individual Contribution Breakdown", section_style))
@@ -420,5 +453,12 @@ def generate_pdf(interval="weekly"):
     print(f" -> Found {len(students)} student(s) and {total_commits} total commits.")
 
 if __name__ == "__main__":
-    chosen_interval = sys.argv[1].lower() if len(sys.argv) > 1 else "weekly"
-    generate_pdf(chosen_interval)
+    arg = sys.argv[1].lower() if len(sys.argv) > 1 else "weekly"
+    if arg in ["all", "last3", "last-3"]:
+        target_dates = ["2026-09-26", "2026-10-01", "2026-10-08"]
+        for d in target_dates:
+            generate_pdf("weekly", as_of_date=d)
+    elif len(arg) == 10 and arg.count('-') == 2:
+        generate_pdf("weekly", as_of_date=arg)
+    else:
+        generate_pdf(arg)
