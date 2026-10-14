@@ -3,10 +3,10 @@
 Security properties:
   * filenames are generated server-side (UUID4 hex + extension) — client
     filenames are never used, so path traversal is impossible;
-  * every filename is re-validated against a strict pattern before any
+  * every stored filename is re-validated against a strict pattern before any
     filesystem access (defence in depth);
-  * nothing in this module is ever exposed to clients except the bare
-    generated filename (never a path).
+  * only the bare generated filename is ever surfaced to callers — never a
+    filesystem path.
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from app.core.exceptions import StorageError
 
 logger = logging.getLogger(__name__)
 
-_ALLOWED_EXTENSIONS = {".jpg", ".png", ".webp"}
+_ALLOWED_EXTENSIONS: frozenset[str] = frozenset({".jpg", ".png", ".webp"})
 _SAFE_FILENAME_RE = re.compile(r"^[0-9a-f]{32}\.(jpg|png|webp)$")
 
 
@@ -34,7 +34,7 @@ class ImageStorage:
         return self._base_dir
 
     def ensure_ready(self) -> None:
-        """Create the storage directory if it does not exist (idempotent)."""
+        """Create the storage directory if missing (idempotent)."""
         try:
             self._base_dir.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
@@ -42,7 +42,7 @@ class ImageStorage:
             raise StorageError("The upload directory is not available.") from exc
 
     def save(self, data: bytes, extension: str) -> str:
-        """Write image bytes under a generated filename; return that filename."""
+        """Write image bytes under a generated filename and return that name."""
         if extension not in _ALLOWED_EXTENSIONS:
             # Programming error, not user input: never reachable from the API.
             raise ValueError(f"Unsupported storage extension: {extension!r}")
@@ -53,17 +53,27 @@ class ImageStorage:
             (self._base_dir / filename).write_bytes(data)
         except OSError as exc:
             logger.exception("Failed to write uploaded image.")
-            raise StorageError("The image could not be stored.") from exc
+            raise StorageError("The uploaded file could not be stored.") from exc
         return filename
 
     def read_bytes(self, filename: str) -> bytes:
-        """Read a stored image back by filename (used by the ML worker)."""
+        """Read a stored image back by filename (used by the future ML worker)."""
         path = self.path_for(filename)
         try:
             return path.read_bytes()
         except OSError as exc:
             logger.exception("Failed to read stored image.")
             raise StorageError("The stored image could not be read.") from exc
+
+    def delete(self, filename: str) -> None:
+        """Delete a stored file. Best-effort — never raises to the caller.
+
+        Used to clean up an orphaned upload when the database write fails.
+        """
+        try:
+            self.path_for(filename).unlink(missing_ok=True)
+        except (OSError, StorageError):
+            logger.warning("Could not delete stored image %s", filename, exc_info=True)
 
     def path_for(self, filename: str) -> Path:
         """Resolve a stored filename to a path, rejecting anything unsafe."""

@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Crop Care Crop — backend dependencies (Phase 1)
+# Crop Care Crop — backend dependencies (Database Integration milestone)
 # Install:  pip install -r requirements.txt
 # ---------------------------------------------------------------------------
 
@@ -8,30 +8,31 @@ fastapi>=0.115,<1.0
 uvicorn[standard]>=0.30,<1.0
 pydantic>=2.9,<3.0
 pydantic-settings>=2.5,<3.0
-python-multipart>=0.0.12,<1.0        # required for multipart/form-data (image uploads)
+python-multipart>=0.0.12,<1.0        # required for multipart/form-data image uploads
 
-# --- Testing (kept in this file for Phase 1 so a single install runs the tests) ---
+# --- Database (PostgreSQL via SQLAlchemy 2.x, synchronous) ---
+SQLAlchemy>=2.0.30,<3.0
+psycopg[binary]>=3.2,<4.0            # modern PostgreSQL driver (psycopg 3)
+alembic>=1.13,<2.0                   # schema migrations
+
+# --- Testing ---
 pytest>=8.3,<9.0
+pytest-asyncio>=0.24,<2.0            # runs `async def test_*` without boilerplate
 httpx>=0.27,<1.0                     # required by fastapi.testclient
 
 # ---------------------------------------------------------------------------
-# Reserved for later phases — uncomment when the corresponding task starts:
+# Reserved for later milestones — uncomment when the corresponding task starts:
 #
-# Database Integration (PostgreSQL):
-#   sqlalchemy[asyncio]>=2.0
-#   asyncpg>=0.30
-#   alembic>=1.13
-#
-# ML Integration (disease detection):
+# ML Integration:
 #   torch>=2.3
 #   torchvision>=0.18
-#   ultralytics>=8.2                 # YOLO
+#   ultralytics>=8.2
 #   opencv-python-headless>=4.10
 #   pillow>=10.4
 #   numpy>=1.26
 #   scikit-learn>=1.5
 #
-# Chatbot Integration (LLM):
+# Chatbot Integration:
 #   langchain>=0.2
 #   langgraph>=0.2
 #   ollama>=0.3

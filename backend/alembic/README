@@ -1,0 +1,23 @@
+Alembic — Crop Care Crop
+========================
+
+Every schema change is a migration file in `alembic/versions/`.
+The database URL is injected by `env.py` from DATABASE_URL (see .env.example).
+
+Typical workflow
+----------------
+# 1. Change `app/models/*.py`
+# 2. Generate a migration
+alembic revision --autogenerate -m "describe the change"
+
+# 3. READ the generated file in alembic/versions/ — edit if needed
+# 4. Apply it
+alembic upgrade head
+
+Useful inspection commands
+--------------------------
+alembic current              # which revision is applied
+alembic history --verbose    # full timeline
+alembic upgrade head --sql   # emit SQL without running it (offline mode)
+
+Never edit an applied migration. Create a new one instead.

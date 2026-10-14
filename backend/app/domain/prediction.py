@@ -10,13 +10,17 @@ from uuid import UUID
 class PredictionStatus(str, Enum):
     """Lifecycle states of a prediction request.
 
-    received   - upload accepted and stored; no inference has run yet
-    processing - the ML layer is currently analysing the image
-    completed  - a prediction result is available (crop/disease/confidence)
-    failed     - processing stopped; see `error_code`
+    pending    — upload accepted and stored; inference has not run yet
+    processing — the future ML worker is analysing the image (reserved)
+    completed  — a real prediction result is available
+    failed     — processing stopped; ``error_code`` explains why
+
+    Note: Phase 1 used the value ``received`` for the initial state. It has
+    been renamed to ``pending`` here so that the API vocabulary matches the
+    database vocabulary. This is the only intentional contract change.
     """
 
-    RECEIVED = "received"
+    PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -24,11 +28,16 @@ class PredictionStatus(str, Enum):
 
 @dataclass
 class PredictionRecord:
-    """One prediction request and its lifecycle state (storage-agnostic)."""
+    """One prediction request and its lifecycle state (storage-agnostic).
+
+    This is what the service layer exchanges with the repository. It is
+    deliberately *not* the API schema and *not* the ORM model — the three
+    shapes can evolve independently.
+    """
 
     prediction_id: UUID
     status: PredictionStatus
-    stored_filename: str          # server-generated; NEVER the client's filename
+    stored_filename: str          # server-generated; never the client's filename
     content_type: str
     size_bytes: int
     created_at: datetime

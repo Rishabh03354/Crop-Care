@@ -1,12 +1,11 @@
 """Prediction lifecycle business logic.
 
-Lifecycle: received -> processing -> completed | failed
+Lifecycle:  pending -> processing -> completed | failed
 
 Where everything plugs in:
-  * POST /api/v1/predictions        -> create_prediction() (status stays "received")
+  * POST /api/v1/predictions        -> create_prediction()    (status: pending)
   * GET  /api/v1/predictions/{id}   -> get_prediction()
-  * process_prediction()            -> called by the future background worker
-                                       once the trained ML model is connected
+  * process_prediction()            -> called by the future ML worker
 """
 from __future__ import annotations
 
@@ -40,26 +39,38 @@ class PredictionService:
         self._predictor = predictor
 
     async def create_prediction(self, image: ValidatedImage) -> PredictionRecord:
-        """Store the validated image and persist a new prediction request."""
+        """Store the validated image and persist a new prediction request.
+
+        The image is written to disk first, then the database row. If the
+        database write fails, the orphaned file is deleted so the two stores
+        stay consistent.
+        """
         stored_filename = self._storage.save(image.data, image.extension)
         now = utcnow()
 
         record = PredictionRecord(
             prediction_id=uuid4(),
-            status=PredictionStatus.RECEIVED,
+            status=PredictionStatus.PENDING,
             stored_filename=stored_filename,
             content_type=image.content_type,
             size_bytes=image.size_bytes,
             created_at=now,
             updated_at=now,
         )
-        await self._repository.add(record)
+
+        try:
+            await self._repository.add(record)
+        except AppError:
+            # Roll back the file write so we don't leak orphaned uploads.
+            self._storage.delete(stored_filename)
+            raise
 
         logger.info(
-            "Prediction %s received (file=%s, %d bytes)",
+            "Prediction %s created (file=%s, %d bytes, status=%s)",
             record.prediction_id,
             stored_filename,
             image.size_bytes,
+            record.status.value,
         )
         return record
 
@@ -77,10 +88,10 @@ class PredictionService:
     async def process_prediction(self, prediction_id: UUID) -> PredictionRecord:
         """Run inference for one stored image and update its record.
 
-        NOT triggered by any route yet. A prediction worker (FastAPI
-        BackgroundTasks, a queue consumer, or a cron job) will call this once
-        the ML model is connected. Implemented now so the integration point
-        is explicit.
+        **Not called by any route today.** A prediction worker (FastAPI
+        ``BackgroundTasks``, a queue consumer or a cron job) will call this
+        once the ML model is connected. Implemented now so the integration
+        seam is explicit.
         """
         record = await self.get_prediction(prediction_id)
 
