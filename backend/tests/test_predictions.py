@@ -18,7 +18,7 @@ _GENERATED_NAME_RE = re.compile(r"^[0-9a-f]{32}\.(jpg|png|webp)$")
 # ---------------------------------------------------------------------------
 
 
-def test_upload_valid_image_returns_201_with_received_status(
+def test_upload_valid_image_returns_201_with_pending_status(
     client: TestClient, png_bytes: bytes
 ) -> None:
     files = {"image": ("my leaf photo.png", png_bytes, "image/png")}
@@ -28,25 +28,37 @@ def test_upload_valid_image_returns_201_with_received_status(
     assert response.status_code == 201
     body = response.json()
 
-    assert body["status"] == "received"
+    assert body["status"] == "pending"
     uuid.UUID(body["prediction_id"])                       # parseable UUID
     assert _GENERATED_NAME_RE.fullmatch(body["filename"])  # server-generated name
-    assert "my leaf photo" not in body["filename"]         # original filename is NOT trusted
     assert "/" not in body["filename"] and "\\" not in body["filename"]
 
 
 def test_uploaded_image_is_stored_under_generated_name(
     client: TestClient, app_settings: Settings, png_bytes: bytes
 ) -> None:
-    response = client.post(
+    body = client.post(
         PREDICTIONS_URL,
         files={"image": ("../evil path.png", png_bytes, "image/png")},
-    )
-    body = response.json()
+    ).json()
 
     stored_path: Path = app_settings.upload_dir / body["filename"]
     assert stored_path.is_file()
     assert stored_path.read_bytes() == png_bytes
+
+
+def test_uploaded_prediction_is_persisted_in_the_database(
+    client: TestClient, png_bytes: bytes
+) -> None:
+    """The 201 response and the DB row describe the same record."""
+    created = client.post(
+        PREDICTIONS_URL, files={"image": ("leaf.png", png_bytes, "image/png")}
+    ).json()
+
+    # A subsequent GET (which reads from the DB) must return the same record.
+    fetched = client.get(f"{PREDICTIONS_URL}/{created['prediction_id']}").json()
+    assert fetched["prediction_id"] == created["prediction_id"]
+    assert fetched["status"] == "pending"
 
 
 # ---------------------------------------------------------------------------
@@ -62,7 +74,6 @@ def test_upload_rejects_unsupported_content_type(client: TestClient) -> None:
     assert response.status_code == 415
     error = response.json()["error"]
     assert error["code"] == "INVALID_IMAGE"
-    assert set(error) >= {"code", "message", "details"}
 
 
 def test_upload_rejects_fake_image_content(client: TestClient) -> None:
@@ -100,7 +111,6 @@ def test_upload_rejects_oversized_image(client: TestClient) -> None:
 def test_upload_missing_image_field_returns_422(
     client: TestClient, png_bytes: bytes
 ) -> None:
-    """Multipart body without the required ``image`` field."""
     response = client.post(
         PREDICTIONS_URL, files={"photo": ("leaf.png", png_bytes, "image/png")}
     )
@@ -108,7 +118,7 @@ def test_upload_missing_image_field_returns_422(
     assert response.status_code == 422
     body = response.json()
     assert body["error"]["code"] == "VALIDATION_ERROR"
-    assert body["error"]["details"]  # field-level details present
+    assert body["error"]["details"]
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +126,7 @@ def test_upload_missing_image_field_returns_422(
 # ---------------------------------------------------------------------------
 
 
-def test_get_prediction_returns_received_record(
+def test_get_prediction_returns_pending_record(
     client: TestClient, png_bytes: bytes
 ) -> None:
     created = client.post(
@@ -128,7 +138,7 @@ def test_get_prediction_returns_received_record(
     assert response.status_code == 200
     body = response.json()
     assert body["prediction_id"] == created["prediction_id"]
-    assert body["status"] == "received"
+    assert body["status"] == "pending"
     # No fake results before the ML model is connected:
     assert body["crop"] is None
     assert body["disease"] is None

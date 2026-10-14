@@ -29,7 +29,7 @@ htmlcov/
 alembic/versions/__pycache__/
 
 # --- Uploaded images and ML models (never commit user data / large binaries) ---
-storage/
+/storage/
 ml_models/
 *.pt
 *.pth

@@ -24,8 +24,6 @@ class PredictionStatus(str, Enum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
-    # Backward compatibility alias
-    RECEIVED = "received"
 
 
 @dataclass
