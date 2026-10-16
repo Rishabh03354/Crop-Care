@@ -30,6 +30,9 @@ crop-care/
 ├── requirements.txt           # Python dependencies
 ├── generate_report.py         # Automated Form-3 progress report generator
 ├── .github/workflows/         # CI/CD & Automated weekly progress reporting
+├── docs/                      # Technical evaluations & architecture docs
+│   ├── Crop_Care_LLM_Evaluation_and_Cost_Analysis.pdf  # Formal PDF report
+│   └── LLM_EVALUATION_AND_COST.md                      # Markdown benchmark report
 ├── backend/                   # FastAPI backend service
 └── frontend/                  # Next.js / React frontend UI
 ```
@@ -64,6 +67,11 @@ crop-care/
 - **Empirical Bayes Risk Benchmark:** Fine-tuned model achieves a **70.4% reduction in expected operational risk** and zero critical false negatives.
 - **Safety Decision Thresholding ($\tau = 0.25$):** Prioritizes $>98\%$ recall on quarantine pathogens to prevent field escapes.
 - **Production Advisory Engine:** Standalone `diagnose_with_risk_advisory()` integrating Shannon entropy uncertainty gating and automated farm escalation protocols.
+
+### 5. Chatbot LLM Architecture & Cost Benchmark ([Full PDF Report](docs/Crop_Care_LLM_Evaluation_and_Cost_Analysis.pdf) | [Markdown](docs/LLM_EVALUATION_AND_COST.md))
+- **Multimodal Evaluation:** Benchmarks 7 leading vision & text models (Gemini 2.0/1.5 Flash, GPT-4o mini, Llama 3.2 Vision on Groq, Qwen 2.5-VL, Claude 3.5 Haiku, DeepSeek-V3, GPT-4o).
+- **Unit Economics:** Gemini 2.0 Flash (\$0.25/1k queries) and GPT-4o mini (\$0.38/1k queries) offer optimal trade-offs for leaf diagnosis under 400ms TTFT.
+- **Multi-Tier Routing:** Low-cost MobileNetV2 edge screening $\rightarrow$ localized PostgreSQL RAG $\rightarrow$ multimodal conversational LLM with strict chemical dosage guardrails.
 
 ---
 
