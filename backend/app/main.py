@@ -28,7 +28,7 @@ from app.database.connection import (
     ping_database,
 )
 from app.ml.predictor import CropDiseasePredictor
-from app.repositories.disease_repository import InMemoryDiseaseRepository
+from app.repositories.disease_repository import SqlDiseaseRepository
 from app.repositories.prediction_repository import SqlPredictionRepository
 from app.services.disease_service import DiseaseService
 from app.services.prediction_service import PredictionService
@@ -111,7 +111,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         storage=storage,
         predictor=predictor,
     )
-    disease_service = DiseaseService(repository=InMemoryDiseaseRepository())
+    disease_repository = SqlDiseaseRepository(session_factory)
+    disease_service = DiseaseService(repository=disease_repository)
     recommendation_service = RecommendationService()
 
     app = FastAPI(
@@ -130,6 +131,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.storage = storage
     app.state.predictor = predictor
     app.state.prediction_service = prediction_service
+    app.state.disease_repository = disease_repository
     app.state.disease_service = disease_service
     app.state.recommendation_service = recommendation_service
 

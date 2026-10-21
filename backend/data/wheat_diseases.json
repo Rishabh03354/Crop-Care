@@ -1,0 +1,266 @@
+[
+  {
+    "name": "aphid",
+    "display_name": "Aphid",
+    "crop": "Wheat",
+    "description": "Insect pest (Rhopalosiphum padi / Sitobion avenae) and viral vector affecting foliage and sap.",
+    "symptoms": [
+      "Yellowing of foliage",
+      "Stunted tillers",
+      "Sticky honeydew secretion",
+      "Curled leaf margins"
+    ],
+    "causes": "Colonization by Rhopalosiphum padi / Sitobion avenae under warm conditions.",
+    "treatment": [
+      "Apply recommended systemic insecticide (e.g., imidacloprid)",
+      "Encourage beneficial predator populations such as ladybirds",
+      "Monitor field margins regularly"
+    ],
+    "severity": "medium"
+  },
+  {
+    "name": "black-rust",
+    "display_name": "Black Rust",
+    "crop": "Wheat",
+    "description": "Stem rust caused by Puccinia graminis f. sp. tritici, an airborne Basidiomycete with epidemic potential.",
+    "symptoms": [
+      "Dark reddish-brown to black elongated pustules on stems and leaf sheaths",
+      "Epidermal tissue tearing",
+      "Severe stem lodging"
+    ],
+    "causes": "Windborne urediniospores of Puccinia graminis f. sp. tritici spreading in warm, moist weather.",
+    "treatment": [
+      "Apply triazole or strobilurin fungicides (e.g., tebuconazole)",
+      "Sow resistant wheat cultivars",
+      "Eradicate alternate host barberry bushes"
+    ],
+    "severity": "high"
+  },
+  {
+    "name": "blast",
+    "display_name": "Wheat Blast",
+    "crop": "Wheat",
+    "description": "Severe spike infection caused by Magnaporthe oryzae Triticum pathotype.",
+    "symptoms": [
+      "Completely bleached spikes while canopy remains green",
+      "Dark lesions on rachis nodes",
+      "Severely shriveled grain",
+      "Premature ear death"
+    ],
+    "causes": "Airborne conidia and infected seeds under warm, wet conditions during flowering.",
+    "treatment": [
+      "Prophylactic fungicide spray at heading and early flowering",
+      "Use certified disease-free seed",
+      "Enforce regional quarantine protocols"
+    ],
+    "severity": "high"
+  },
+  {
+    "name": "brown-rust",
+    "display_name": "Brown Rust",
+    "crop": "Wheat",
+    "description": "Leaf rust caused by Puccinia triticina, reducing green photosynthetic leaf area.",
+    "symptoms": [
+      "Small circular to oval orange-brown pustules scattered across upper leaf surfaces",
+      "Premature leaf desiccation"
+    ],
+    "causes": "Windborne spores of Puccinia triticina favored by mild temperatures and dew.",
+    "treatment": [
+      "Foliar fungicide application (propiconazole, tebuconazole)",
+      "Plant cultivars carrying effective Lr resistance genes"
+    ],
+    "severity": "medium"
+  },
+  {
+    "name": "common-root-rot",
+    "display_name": "Common Root Rot",
+    "crop": "Wheat",
+    "description": "Soil- and seed-borne root and crown rot caused by Bipolaris sorokiniana.",
+    "symptoms": [
+      "Dark brown to black subcrown lesions",
+      "Crown and root necrosis",
+      "Reduced tiller count",
+      "Whiteheads at grain filling"
+    ],
+    "causes": "Soil inoculum and infected seed surviving in dry, compacted soils.",
+    "treatment": [
+      "Fungicidal seed treatment",
+      "Rotate with non-cereal crops such as legumes or oilseeds",
+      "Maintain balanced soil phosphorus and potassium"
+    ],
+    "severity": "low"
+  },
+  {
+    "name": "flag-smut",
+    "display_name": "Flag Smut",
+    "crop": "Wheat",
+    "description": "Systemic fungal disease caused by Urocystis agropyri producing dark spore streaks on leaves.",
+    "symptoms": [
+      "Long gray-black stripes on flag leaves",
+      "Twisting and distortion of leaves",
+      "Suppressed heading and stunting"
+    ],
+    "causes": "Seed-borne and soil-borne teliospores persisting in soil.",
+    "treatment": [
+      "Seed dressing with carboxin or tebuconazole",
+      "Deep summer tillage",
+      "Crop rotation"
+    ],
+    "severity": "low"
+  },
+  {
+    "name": "fusarium-head-blight",
+    "display_name": "Fusarium Head Blight",
+    "crop": "Wheat",
+    "description": "Head blight caused by Fusarium graminearum, causing mycotoxin (deoxynivalenol/DON) accumulation.",
+    "symptoms": [
+      "Premature bleaching of spikelets",
+      "Orange/pink spore masses along glume margins",
+      "Chalky, shriveled kernels (tombstones)"
+    ],
+    "causes": "Rain-splash and windborne ascospores from maize and cereal residues during anthesis.",
+    "treatment": [
+      "Targeted triazole fungicide (prothioconazole or metconazole) at early flowering",
+      "Avoid direct maize-to-wheat rotation",
+      "Choose moderately resistant cultivars"
+    ],
+    "severity": "high"
+  },
+  {
+    "name": "healthy",
+    "display_name": "Healthy Wheat",
+    "crop": "Wheat",
+    "description": "Asymptomatic, healthy Triticum aestivum crop canopy with vigorous growth.",
+    "symptoms": [
+      "Uniform green canopy",
+      "Vigorous tillers",
+      "Absence of chlorotic or necrotic lesions"
+    ],
+    "causes": "Proper agronomic management and absence of pathogen infection.",
+    "treatment": [
+      "Maintain recommended irrigation and balanced nutrition",
+      "Periodic scouting for early pest/disease detection"
+    ],
+    "severity": "low"
+  },
+  {
+    "name": "leaf-blight",
+    "display_name": "Leaf Blight",
+    "crop": "Wheat",
+    "description": "Foliar blight caused by Bipolaris sorokiniana and Alternaria triticina complex.",
+    "symptoms": [
+      "Small brown oval lesions expanding into irregular necrotic patches with yellow halos",
+      "Premature leaf drying"
+    ],
+    "causes": "Warm temperatures (20-25 C) combined with high relative humidity.",
+    "treatment": [
+      "Foliar spray with mancozeb or propiconazole at symptom onset",
+      "Field sanitation and destruction of volunteer crops"
+    ],
+    "severity": "medium"
+  },
+  {
+    "name": "mildew",
+    "display_name": "Powdery Mildew",
+    "crop": "Wheat",
+    "description": "Biotrophic foliar infection caused by Blumeria graminis f. sp. tritici.",
+    "symptoms": [
+      "White to grayish powdery colonies on upper leaf surfaces and stems",
+      "Chlorosis directly beneath fungal patches"
+    ],
+    "causes": "Airborne conidia favored by dense canopy shade, high nitrogen, and cool humid conditions.",
+    "treatment": [
+      "Apply sulfur-based or triazole fungicides",
+      "Optimize nitrogen dosage to prevent succulent canopy",
+      "Ensure proper plant spacing for canopy ventilation"
+    ],
+    "severity": "medium"
+  },
+  {
+    "name": "mite",
+    "display_name": "Wheat Curl Mite",
+    "crop": "Wheat",
+    "description": "Microscopic arachnid pest (Aceria tosichella) and primary vector for Wheat Streak Mosaic Virus.",
+    "symptoms": [
+      "Inward rolling of leaf margins",
+      "Trapped leaf tips (looping/onion leaves)",
+      "Mottling and yellow mosaic striping"
+    ],
+    "causes": "Wind dispersal of mites from volunteer wheat and wild grasses.",
+    "treatment": [
+      "Eliminate volunteer wheat at least 2 weeks before sowing to break green bridge",
+      "Delay autumn sowing",
+      "Select mite-resistant cultivars"
+    ],
+    "severity": "medium"
+  },
+  {
+    "name": "septoria",
+    "display_name": "Septoria Leaf Blotch",
+    "crop": "Wheat",
+    "description": "Necrotrophic foliar disease caused by Zymoseptoria tritici.",
+    "symptoms": [
+      "Irregular brown necrotic lesions bounded by leaf veins",
+      "Prominent black speckles (pycnidia) embedded in necrotic lesions"
+    ],
+    "causes": "Rain-splashed pycnidiospores moving upwards from lower canopy in wet conditions.",
+    "treatment": [
+      "Apply protective or early curative fungicides (SDHI, triazole mixtures)",
+      "Incorporate crop stubble",
+      "Crop rotation"
+    ],
+    "severity": "medium"
+  },
+  {
+    "name": "stem-fly",
+    "display_name": "Wheat Stem Fly",
+    "crop": "Wheat",
+    "description": "Stem boring insect pest (Atherigona oryzae / Cephus cinctus) causing deadheart symptoms.",
+    "symptoms": [
+      "Central tiller shoot drying and turning pale (deadheart)",
+      "Internal tunneling and frass in stems",
+      "Lodging of damaged culms"
+    ],
+    "causes": "Egg laying by adult flies followed by larval tunneling into growing points.",
+    "treatment": [
+      "Adjust sowing date to avoid peak fly activity",
+      "Seed treatment with approved systemic insecticides",
+      "Destroy harvested stubble"
+    ],
+    "severity": "low"
+  },
+  {
+    "name": "tan-spot",
+    "display_name": "Tan Spot",
+    "crop": "Wheat",
+    "description": "Foliar disease caused by Pyrenophora tritici-repentis.",
+    "symptoms": [
+      "Tan oval lesions with a dark central spot and distinct yellow halo",
+      "Coalescing lesions causing blighting of upper leaves"
+    ],
+    "causes": "Ascospores released from wheat stubble residues during moist spring weather.",
+    "treatment": [
+      "Foliar fungicide application at flag leaf emergence",
+      "Rotate crops away from wheat for at least one season",
+      "Residue management"
+    ],
+    "severity": "medium"
+  },
+  {
+    "name": "yellow-rust",
+    "display_name": "Yellow Rust",
+    "crop": "Wheat",
+    "description": "Stripe rust caused by Puccinia striiformis f. sp. tritici, forming parallel stripes of bright yellow uredinia.",
+    "symptoms": [
+      "Bright yellow pustules aligned in distinctive linear stripes along leaf veins",
+      "Chlorosis and drying of infected leaves",
+      "Shriveled grain"
+    ],
+    "causes": "Airborne transport of urediniospores under cool (10-15 C) and humid conditions.",
+    "treatment": [
+      "Prompt foliar application of triazole fungicides (propiconazole, tebuconazole)",
+      "Deploy resistant varieties carrying Yr resistance genes"
+    ],
+    "severity": "high"
+  }
+]
