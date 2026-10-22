@@ -17,7 +17,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 # -------------------------------------------------------------
 COLLEGE_NAME = "Swami Keshvanand Institute of Technology,Management & Gramothan, Jaipur"
 DEPARTMENT_NAME = "Department of Computer Science & Engineering"
-REPO_NAME = "SKIT-DS-2023-2027-022"
+REPO_NAME = "crop-care"
 
 # The 4 designated team members - no one else will appear in the report
 TEAM_MEMBERS = [
@@ -47,7 +47,7 @@ def get_repo_info(override_repo=None):
     elif REPO_NAME:
         repo_name = REPO_NAME
     else:
-        repo_name = "SKIT-DS-2023-2027-022"
+        repo_name = "crop-care"
         try:
             root_path = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], encoding='utf-8').strip()
             repo_name = os.path.basename(root_path)
@@ -355,7 +355,7 @@ def generate_pdf(interval="weekly", as_of_date=None, output_dir="weekly_reports"
     for student_name in TEAM_MEMBERS:
         logs = student_logs.get(student_name, [])
         student_section = []
-        student_section.append(Paragraph(f"<b>Student:</b> {html.escape(student_name)} — <i>{len(logs)} commit(s)</i>", sub_section_style))
+        student_section.append(Paragraph(f"<b>Student:</b> {html.escape(student_name)} &bull; <i>{len(logs)} commit(s)</i>", sub_section_style))
         
         if not logs:
             no_commits_table = Table([[
@@ -449,6 +449,13 @@ def generate_pdf(interval="weekly", as_of_date=None, output_dir="weekly_reports"
     story.append(KeepTogether(sig_table))
 
     doc.build(story)
+    # Ensure a copy exists in repository root so CI workflows executing `mv *_Weekly_Progress_Report_Form-3_*.pdf weekly_reports/` succeed
+    if output_dir and output_dir != "." and os.path.exists(doc_name):
+        try:
+            import shutil
+            shutil.copyfile(doc_name, file_name)
+        except Exception:
+            pass
     print(f"\n[SUCCESS] Generated: {doc_name}")
     print(f" -> Found {len(students)} student(s) and {total_commits} total commits.")
 
