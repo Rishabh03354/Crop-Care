@@ -69,46 +69,52 @@ export default function Home() {
     setIsValidating(false);
 
     if (!validation.isValid) {
-      setQualityError(validation.error || "Invalid image detected.");
-      setError(validation.error || "The image lacks visible crop features.");
+      setQualityError(validation.error || "The uploaded image appears invalid or blank.");
+      setError(validation.error || "Image quality error: Please upload a clear photo of an actual crop leaf.");
     }
   };
 
   // Handle normal file selection
-  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
 
     if (file) {
-      await validateAndSetImage(file);
+      validateAndSetImage(file);
     }
 
     event.target.value = "";
   };
 
   // Handle drag and drop
-  const handleDrop = async (event: DragEvent<HTMLDivElement>) => {
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setIsDragging(false);
 
     const file = event.dataTransfer.files?.[0];
 
     if (file) {
-      await validateAndSetImage(file);
+      validateAndSetImage(file);
     }
+  };
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDragging(false);
   };
 
   // Remove selected image
   const removeImage = () => {
+    if (preview) {
+      URL.revokeObjectURL(preview);
+    }
+
     setSelectedImage(null);
-
-    setPreview((oldPreview) => {
-      if (oldPreview) {
-        URL.revokeObjectURL(oldPreview);
-      }
-
-      return null;
-    });
-
+    setPreview(null);
     setError("");
     setQualityError(null);
     setIsAnalyzing(false);
@@ -201,7 +207,7 @@ export default function Home() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-600 text-xl font-bold text-white shadow-sm shadow-green-200">
-              🌱
+              🌾
             </div>
 
             <div>
@@ -226,6 +232,15 @@ export default function Home() {
             >
               Disease Detection
             </a>
+
+            <Link
+              href="/dashboard#catalogue-explorer"
+              className="flex items-center gap-1.5 text-slate-600 transition hover:text-green-700"
+            >
+              <span>📖</span>
+              <span>Disease Library</span>
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">15</span>
+            </Link>
 
             <Link
               href="/dashboard"
@@ -256,7 +271,7 @@ export default function Home() {
       <section className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-16 lg:grid-cols-2 lg:py-24">
         <div>
           <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-green-100 px-4 py-2 text-sm font-semibold text-green-800">
-            <span>🌱</span>
+            <span>🌾</span>
             AI-powered crop protection platform
           </div>
 
@@ -267,7 +282,7 @@ export default function Home() {
 
           <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
             Upload a clear image of your crop and get AI-powered disease
-            detection with real-time weather risk insights and tailored treatment recommendations.
+            detection with real-time weather risk insights, authoritative catalogue protocols, and tailored treatment recommendations.
           </p>
 
           <div className="mt-8 flex flex-wrap gap-4">
@@ -275,14 +290,15 @@ export default function Home() {
               href="#detect"
               className="rounded-xl bg-green-600 px-6 py-3.5 font-semibold text-white shadow-lg shadow-green-200 transition hover:bg-green-700"
             >
-              Detect Crop Disease 🔬
+              Detect Crop Disease 📷
             </a>
 
             <Link
-              href="/dashboard"
-              className="rounded-xl border border-slate-200 bg-white px-6 py-3.5 font-semibold text-slate-700 transition hover:border-green-200 hover:bg-green-50"
+              href="/dashboard#catalogue-explorer"
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3.5 font-semibold text-slate-700 transition hover:border-green-200 hover:bg-green-50"
             >
-              Open Farmer Dashboard →
+              <span>📖</span>
+              <span>Wheat Disease Library</span>
             </Link>
           </div>
 
@@ -293,11 +309,11 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-green-600 font-bold">✓</span>
-              <span>FastAPI & PostgreSQL Integration</span>
+              <span>FastAPI & SQLite Integration</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-green-600 font-bold">✓</span>
-              <span>Weather Risk Analysis</span>
+              <span>15 Wheat Diseases Catalogue</span>
             </div>
           </div>
         </div>
@@ -307,7 +323,7 @@ export default function Home() {
           <div className="flex items-center justify-between border-b border-slate-100 pb-4">
             <div className="flex items-center gap-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50 text-xl">
-                🍃
+                🌾
               </span>
               <div>
                 <h3 className="font-bold text-slate-900">Diagnosis Overview</h3>
@@ -328,126 +344,125 @@ export default function Home() {
               <div className="mt-2 h-2 w-full rounded-full bg-slate-200">
                 <div className="h-2 w-3/5 rounded-full bg-amber-500" />
               </div>
+              <p className="mt-2 text-xs text-slate-500">
+                Persistent dew and 18°C temperature detected by sensor node #SKIT-022.
+              </p>
             </div>
 
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="rounded-xl bg-slate-50 p-3">
-                <div className="text-xl">📷</div>
-                <p className="mt-1 text-xs font-medium text-slate-600">Upload</p>
+            <div className="rounded-2xl bg-green-50/70 p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-green-900">
+                  Authoritative Catalogue
+                </span>
+                <span className="rounded-full bg-green-200 px-2 py-0.5 text-[10px] font-bold text-green-800">
+                  PR #4 Active
+                </span>
               </div>
-              <div className="rounded-xl bg-slate-50 p-3">
-                <div className="text-xl">🤖</div>
-                <p className="mt-1 text-xs font-medium text-slate-600">Analyze</p>
-              </div>
-              <div className="rounded-xl bg-slate-50 p-3">
-                <div className="text-xl">💡</div>
-                <p className="mt-1 text-xs font-medium text-slate-600">Insights</p>
-              </div>
+              <p className="mt-1 text-xs leading-relaxed text-green-800">
+                15 wheat pathogens catalogued with scientific chemical actions and organic bio-fungicide protocols.
+              </p>
+              <Link
+                href="/dashboard#catalogue-explorer"
+                className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-green-900 hover:underline"
+              >
+                Browse All 15 Diseases →
+              </Link>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Disease Detection / Upload Section */}
-      <section id="detect" className="bg-white px-6 py-20">
-        <div className="mx-auto max-w-4xl">
-          <div className="text-center">
-            <span className="text-sm font-bold uppercase tracking-widest text-green-600">
-              Disease Detection
-            </span>
-
-            <h2 className="mt-3 text-4xl font-extrabold tracking-tight text-slate-900">
-              Upload your crop image
-            </h2>
-
-            <p className="mx-auto mt-4 max-w-2xl text-slate-600">
-              Upload a clear image of the affected crop or leaf. Our system
-              connects to the backend ML & database pipeline for instant diagnostics.
-            </p>
+      {/* Detection Section */}
+      <section id="detect" className="border-t border-green-100 bg-white px-6 py-20">
+        <div className="mx-auto max-w-4xl text-center">
+          <div className="inline-flex items-center gap-2 rounded-full bg-green-50 px-3.5 py-1.5 text-xs font-semibold text-green-700">
+            <span>📷</span>
+            Crop Disease Diagnosis Workflow (FR-001)
           </div>
 
+          <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
+            Upload your wheat leaf image
+          </h2>
+
+          <p className="mt-3 text-base text-slate-600">
+            Submit an image for AI-driven pathology diagnosis and immediate treatment prescription.
+          </p>
+
+          {/* Upload Box */}
           <div className="mt-10">
             {!preview ? (
               <div
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  setIsDragging(true);
-                }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={handleDrop}
                 onClick={openFilePicker}
-                className={`cursor-pointer rounded-3xl border-2 border-dashed p-10 text-center transition md:p-16 ${
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                className={`flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed p-12 text-center transition ${
                   isDragging
-                    ? "border-green-600 bg-green-50"
-                    : "border-green-200 bg-green-50/40 hover:border-green-400 hover:bg-green-50"
+                    ? "border-green-600 bg-green-50/60"
+                    : "border-slate-300 bg-slate-50/50 hover:border-green-400 hover:bg-green-50/30"
                 }`}
               >
-                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-white text-4xl shadow-md">
-                  📷
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white text-3xl shadow-sm">
+                  🌾
                 </div>
 
-                <h3 className="mt-6 text-xl font-bold text-slate-900">
-                  Drag & drop your crop image
+                <h3 className="mt-4 text-lg font-bold text-slate-800">
+                  Drag & Drop crop image here
                 </h3>
 
-                <p className="mt-2 text-slate-500">
-                  or click anywhere here to choose an image
+                <p className="mt-1 text-sm text-slate-500">
+                  or click anywhere to browse from your device
                 </p>
 
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    openFilePicker();
-                  }}
-                  className="mt-6 rounded-xl bg-green-600 px-6 py-3 font-semibold text-white transition hover:bg-green-700"
-                >
-                  Choose Image
-                </button>
-
-                <p className="mt-5 text-xs text-slate-400">
-                  JPG, JPEG or PNG • Maximum size 10 MB
-                </p>
+                <div className="mt-4 flex items-center gap-2 text-xs text-slate-400">
+                  <span>PNG, JPG, or JPEG</span>
+                  <span>•</span>
+                  <span>Max 10 MB</span>
+                </div>
               </div>
             ) : (
-              <div className="rounded-3xl border border-green-100 bg-green-50/50 p-6 md:p-8">
-                <div className="grid gap-8 md:grid-cols-2">
-                  {/* Preview */}
-                  <div className="relative overflow-hidden rounded-2xl bg-slate-100">
+              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="flex flex-col items-center gap-6 md:flex-row md:items-start">
+                  <div className="relative h-64 w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 md:w-72">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={preview}
-                      alt="Selected crop"
-                      className="h-56 w-full object-cover sm:h-72 md:h-80"
+                      alt="Selected crop leaf preview"
+                      className="h-full w-full object-cover"
                     />
 
-                    {/* Image quality badge */}
-                    <div className="absolute bottom-2 left-2">
-                      {isValidating ? (
-                        <span className="rounded-md bg-slate-900/80 px-2 py-1 text-[11px] font-medium text-white backdrop-blur">
-                          Scanning image quality...
-                        </span>
-                      ) : qualityError ? (
-                        <span className="flex items-center gap-1 rounded-md bg-red-600/90 px-2 py-1 text-[11px] font-semibold text-white shadow backdrop-blur">
-                          <span>⚠️</span> Blank / No Leaf
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 rounded-md bg-emerald-600/90 px-2 py-1 text-[11px] font-semibold text-white shadow backdrop-blur">
-                          <span>✓</span> Leaf Foliage Verified
-                        </span>
-                      )}
-                    </div>
+                    {/* Pre-validation feedback overlay */}
+                    {isValidating && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-semibold text-white backdrop-blur-xs">
+                        Validating plant features...
+                      </div>
+                    )}
                   </div>
 
-                  {/* Image Information */}
-                  <div className="flex flex-col justify-center">
-                    <span className="text-sm font-semibold text-green-600">
-                      IMAGE READY
-                    </span>
+                  <div className="flex-1 text-left">
+                    <div className="flex items-center justify-between">
+                      <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
+                        Leaf Sample Ready
+                      </span>
 
-                    <h3 className="mt-2 break-all text-2xl font-bold text-slate-900">
+                      <span className="text-xs text-slate-400">
+                        Ready for API Dispatch
+                      </span>
+                    </div>
+
+                    <h4 className="mt-3 text-lg font-bold text-slate-900">
                       {selectedImage?.name}
-                    </h3>
+                    </h4>
+
+                    {/* Client-side quality detection warning */}
+                    {qualityError && (
+                      <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <span>⚠️</span> Pre-Check Warning:
+                        </div>
+                        <p className="mt-0.5">{qualityError}</p>
+                      </div>
+                    )}
 
                     <p className="mt-2 text-sm text-slate-500">
                       {selectedImage
@@ -491,7 +506,7 @@ export default function Home() {
                         ) : qualityError ? (
                           <span>Upload a real crop image</span>
                         ) : (
-                          <span>Analyze Crop 🔬</span>
+                          <span>Analyze Crop 📷</span>
                         )}
                       </button>
                     </div>
@@ -539,9 +554,14 @@ export default function Home() {
                     </div>
 
                     <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-                      <p className="text-xs text-slate-500">
-                        Track diagnosis status, weather risk, and treatment plans:
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href="/dashboard#catalogue-explorer"
+                          className="rounded-lg border border-green-300 bg-green-50 px-3.5 py-2 text-xs font-bold text-green-900 transition hover:bg-green-100"
+                        >
+                          📖 Consult Disease Catalogue
+                        </Link>
+                      </div>
                       <Link
                         href="/dashboard"
                         className="rounded-lg bg-green-700 px-4 py-2 text-xs font-bold text-white transition hover:bg-green-800 shadow-sm"
@@ -570,26 +590,26 @@ export default function Home() {
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-8 md:grid-cols-3">
             <div className="rounded-2xl bg-white p-7 shadow-sm">
-              <div className="text-3xl">📸</div>
+              <div className="text-3xl">📷</div>
               <h3 className="mt-5 text-xl font-bold">Simple Upload</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                Farmers can easily upload crop images through a responsive, mobile-optimized interface.
+                Farmers can easily upload crop images through a responsive, mobile-optimized interface with client-side quality filters.
               </p>
             </div>
 
             <div className="rounded-2xl bg-white p-7 shadow-sm">
-              <div className="text-3xl">🤖</div>
-              <h3 className="mt-5 text-xl font-bold">FastAPI Integration</h3>
+              <div className="text-3xl">📖</div>
+              <h3 className="mt-5 text-xl font-bold">15-Disease Catalogue</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                Uploaded images connect directly to the FastAPI REST API and PostgreSQL database pipeline.
+                Live authoritative library providing scientific chemical control protocols and eco-friendly organic remedies.
               </p>
             </div>
 
             <div className="rounded-2xl bg-white p-7 shadow-sm">
               <div className="text-3xl">🌾</div>
-              <h3 className="mt-5 text-xl font-bold">Crop Care & Risk</h3>
+              <h3 className="mt-5 text-xl font-bold">Microclimate Risk</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                Combines micro-climate weather data and soil reports to alert farmers before fungal outbreaks occur.
+                Combines micro-climate weather data and soil reports to alert farmers before fungal spore outbreaks occur.
               </p>
             </div>
           </div>
@@ -598,12 +618,9 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="border-t border-green-100 bg-white px-6 py-8">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 text-sm text-slate-500 md:flex-row">
-          <p>© 2026 Crop Care Crop (Group DS-22). Academic Project at SKIT Jaipur.</p>
-          <div className="flex gap-4">
-            <Link href="/" className="hover:text-green-700">Home</Link>
-            <Link href="/dashboard" className="hover:text-green-700">Farmer Dashboard</Link>
-          </div>
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 text-xs text-slate-500 sm:flex-row">
+          <p>© 2026 Crop Care • SKIT CSE(DS) Final Year Project Group DS-22</p>
+          <p>Guided by Dr. Jyoti Singh • Built with Next.js, FastAPI & SQLite</p>
         </div>
       </footer>
     </main>
