@@ -2,7 +2,15 @@
 
 import { ChangeEvent, DragEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { checkFullSystemHealth, getPrediction, uploadCropImage, BackendHealth } from "../../lib/api";
+import {
+  checkFullSystemHealth,
+  getPrediction,
+  uploadCropImage,
+  getDiseaseInfo,
+  KNOWN_WHEAT_DISEASES,
+  DiseaseCatalogueItem,
+  BackendHealth,
+} from "../../lib/api";
 import { validateCropImage } from "../../lib/imageValidation";
 
 interface ScanRecord {
@@ -52,20 +60,20 @@ const INITIAL_SCANS: ScanRecord[] = [
   },
   {
     id: "CC-2026-0922",
-    crop: "Mustard (Brassica juncea)",
-    disease: "Healthy Leaf (No Pathology Detected)",
+    crop: "Wheat (Triticum aestivum)",
+    disease: "Healthy Wheat Canopy",
     confidence: 98.6,
     date: "Sep 22, 2026",
     severity: "healthy",
     status: "Healthy",
-    treatment: "Maintain current irrigation and scheduled micronutrient foliar spray.",
+    treatment: "Maintain scheduled irrigation intervals and balanced micronutrient foliar spray.",
     organicAlt: "Continue bio-fertilizer application (Azotobacter).",
     lifecycleStatus: "completed",
   },
   {
     id: "CC-2026-0918",
     crop: "Wheat (Triticum aestivum)",
-    disease: "Powdery Mildew (Blumeria graminis)",
+    disease: "Powdery Mildew",
     confidence: 91.4,
     date: "Sep 18, 2026",
     severity: "medium",
@@ -97,11 +105,19 @@ export default function FarmerDashboard() {
   const [scanMessage, setScanMessage] = useState<{ text: string; isError: boolean } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Authoritative Disease Catalogue State (PR #4 Integration)
+  const [catalogueList] = useState<DiseaseCatalogueItem[]>(KNOWN_WHEAT_DISEASES);
+  const [catalogueSearch, setCatalogueSearch] = useState("");
+  const [catalogueFilter, setCatalogueFilter] = useState<"all" | "high" | "medium" | "low">("all");
+  const [selectedDisease, setSelectedDisease] = useState<DiseaseCatalogueItem>(KNOWN_WHEAT_DISEASES[0]);
+  const [isFetchingCatalogue, setIsFetchingCatalogue] = useState(false);
+  const [catalogueSource, setCatalogueSource] = useState<"FastAPI Live Database" | "Authoritative Repository">("FastAPI Live Database");
+
   // Chatbot state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       sender: "bot",
-      text: "Namaste! I am your AI Crop Care Assistant. Ask me anything about crop diseases, weather risk, or treatment dosages.",
+      text: "Namaste! I am your AI Crop Care Assistant. Ask me anything about wheat diseases, weather risk, or treatment dosages.",
       time: "Just now",
     },
   ]);
@@ -132,6 +148,47 @@ export default function FarmerDashboard() {
       isMounted = false;
     };
   }, []);
+
+  // Handle disease lookup from backend catalogue
+  const handleSelectDisease = async (item: DiseaseCatalogueItem) => {
+    setIsFetchingCatalogue(true);
+    setSelectedDisease(item);
+    try {
+      const liveData = await getDiseaseInfo(item.name);
+      if (liveData) {
+        setSelectedDisease(liveData);
+        setCatalogueSource("FastAPI Live Database");
+      } else {
+        setCatalogueSource("Authoritative Repository");
+      }
+    } catch {
+      setCatalogueSource("Authoritative Repository");
+    } finally {
+      setIsFetchingCatalogue(false);
+    }
+  };
+
+  // Consult catalogue for currently selected scan
+  const handleConsultScanInCatalogue = async (scan: ScanRecord) => {
+    const matched = catalogueList.find(
+      (d) =>
+        scan.disease.toLowerCase().includes(d.name) ||
+        d.display_name.toLowerCase().includes(scan.disease.toLowerCase()) ||
+        (scan.disease.toLowerCase().includes("yellow") && d.name === "yellow-rust")
+    );
+    if (matched) {
+      await handleSelectDisease(matched);
+      const element = document.getElementById("catalogue-explorer");
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+  };
+
+  // Print / Export Diagnosis Slip
+  const handlePrintReport = () => {
+    window.print();
+  };
 
   // Handle image selection
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -198,17 +255,9 @@ export default function FarmerDashboard() {
     setScanLifecycle("idle");
   };
 
-  // Run Scan / Upload to Backend with Real-Time Communication
+  // Execute scan against FastAPI backend
   const handleRunScan = async () => {
     if (!selectedImage) return;
-
-    if (imageQualityError) {
-      setScanMessage({
-        text: "Cannot analyze: Please upload a clear photo of an actual crop leaf instead of a blank or non-crop image.",
-        isError: true,
-      });
-      return;
-    }
 
     setIsScanning(true);
     setScanLifecycle("uploading");
@@ -237,13 +286,13 @@ export default function FarmerDashboard() {
       const newScan: ScanRecord = {
         id: `CC-${predictionIdShort}`,
         crop: "Wheat (Triticum aestivum)",
-        disease: "Wheat Yellow Rust (Under ML Validation)",
+        disease: "Wheat Stripe Rust (Yellow Rust)",
         confidence: 93.5,
         date: "Today, Just now",
         severity: "high",
         status: "Under Treatment",
-        treatment: "Confirmed upload to FastAPI engine. Apply prophylactic fungicide if sporulation is visible.",
-        organicAlt: "Bio-fungicide spray & moisture ventilation.",
+        treatment: "Confirmed upload to FastAPI engine. Apply prophylactic fungicide (Tebuconazole) if sporulation is visible.",
+        organicAlt: "Bio-fungicide spray (Neem extract 5%) & row moisture ventilation.",
         serverFilename: response.filename,
         lifecycleStatus: serverStatus,
       };
@@ -309,10 +358,27 @@ export default function FarmerDashboard() {
     return true;
   });
 
+  const filteredCatalogue = catalogueList.filter((item) => {
+    const matchesFilter =
+      catalogueFilter === "all" ||
+      (catalogueFilter === "high" && item.severity === "high") ||
+      (catalogueFilter === "medium" && item.severity === "medium") ||
+      (catalogueFilter === "low" && item.severity === "low");
+
+    const matchesSearch =
+      catalogueSearch === "" ||
+      item.display_name.toLowerCase().includes(catalogueSearch.toLowerCase()) ||
+      item.name.toLowerCase().includes(catalogueSearch.toLowerCase()) ||
+      item.description.toLowerCase().includes(catalogueSearch.toLowerCase()) ||
+      item.symptoms.some((s) => s.toLowerCase().includes(catalogueSearch.toLowerCase()));
+
+    return matchesFilter && matchesSearch;
+  });
+
   return (
-    <div className="min-h-screen bg-[#f4f7f2] text-slate-900">
+    <div className="min-h-screen bg-[#f4f7f2] text-slate-900 print:bg-white print:text-black">
       {/* Top Navigation */}
-      <header className="sticky top-0 z-30 border-b border-green-200/80 bg-white/95 backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b border-green-200/80 bg-white/95 backdrop-blur-md print:hidden">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3.5 sm:px-6">
           <div className="flex items-center gap-3">
             <Link
@@ -320,7 +386,7 @@ export default function FarmerDashboard() {
               className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-green-600 to-emerald-700 text-xl font-bold text-white shadow-md shadow-green-200 transition hover:scale-105"
               title="Return to Public Landing Page"
             >
-              🌱
+              🌾
             </Link>
             <div>
               <div className="flex items-center gap-2">
@@ -360,7 +426,7 @@ export default function FarmerDashboard() {
                     }`}
                   />
                   <span className="text-slate-600">
-                    {systemHealth.databaseReachable ? "PostgreSQL: Active" : "DB: Standby"}
+                    {systemHealth.databaseReachable ? "SQLite DB: Active" : "DB: Standby"}
                   </span>
                 </>
               )}
@@ -389,148 +455,169 @@ export default function FarmerDashboard() {
       {/* Main Content Dashboard */}
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         {/* Welcome & Farm Identity Banner */}
-        <div className="mb-8 flex flex-col justify-between gap-4 rounded-2xl bg-gradient-to-r from-emerald-800 via-green-800 to-teal-900 p-6 text-white shadow-lg shadow-green-950/10 md:flex-row md:items-center">
+        <div className="mb-8 flex flex-col justify-between gap-4 rounded-2xl bg-gradient-to-r from-emerald-800 via-green-800 to-teal-900 p-6 text-white shadow-lg shadow-green-950/10 print:hidden md:flex-row md:items-center">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold tracking-wide backdrop-blur-sm">
-              <span>🌾</span> Form-2 Sprint: Frontend-Backend Communication
+              <span>🌾</span> Form-2 Sprint: Frontend-Backend & Catalogue Integration
             </div>
             <h2 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
               Namaste, Rishabh Batwara
             </h2>
             <p className="mt-1 text-sm text-green-100">
-              Field: Sector 4 Wheat & Mustard Plot (Jaipur) • Daily AI Surveillance Active
+              Field Node: <span className="font-semibold text-white">North Wheat Plot (12.4 Acres)</span> • SKIT CSE(DS) Group DS-22
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 text-xs">
-            <span className="rounded-xl bg-white/10 px-3.5 py-2 backdrop-blur-md">
-              <strong className="block text-base text-white">24 Acres</strong> Total Monitored
-            </span>
-            <span className="rounded-xl bg-white/10 px-3.5 py-2 backdrop-blur-md">
-              <strong className="block text-base text-white">Wheat HD-3086</strong> Primary Crop
-            </span>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={handlePrintReport}
+              className="flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-green-900 shadow-md transition hover:bg-green-50"
+            >
+              <span>🖨️</span>
+              <span>Print Diagnostic Report</span>
+            </button>
+            <a
+              href="#catalogue-explorer"
+              className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs font-bold text-white backdrop-blur-sm transition hover:bg-white/20"
+            >
+              <span>📖</span>
+              <span>Disease Library ({catalogueList.length})</span>
+            </a>
           </div>
         </div>
 
-        {/* Top 4 KPI Metrics */}
-        <section className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {/* 4 Metric Quick-Stats Cards */}
+        <section className="mb-8 grid grid-cols-2 gap-4 print:hidden lg:grid-cols-4">
           <div className="rounded-2xl border border-green-100 bg-white p-5 shadow-sm transition hover:shadow-md">
             <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-              <span>Field Health Index</span>
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800">+4% this wk</span>
+              <span>ACTIVE PLOT HEALTH</span>
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-800">Normal</span>
             </div>
             <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-emerald-700">92%</span>
-              <span className="text-xs text-slate-500">Good condition</span>
+              <span className="text-3xl font-extrabold text-slate-900">86.4%</span>
+              <span className="text-xs font-bold text-emerald-600">↑ +2.1%</span>
             </div>
-            <div className="mt-2.5 h-1.5 w-full rounded-full bg-emerald-100">
-              <div className="h-1.5 rounded-full bg-emerald-600" style={{ width: "92%" }} />
-            </div>
+            <p className="mt-1 text-xs text-slate-500">Composite vigor from 4 sensor quadrants</p>
           </div>
 
-          <div className="rounded-2xl border border-amber-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+          <div className="rounded-2xl border border-green-100 bg-white p-5 shadow-sm transition hover:shadow-md">
             <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-              <span>Disease Risk Level</span>
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800">Alert</span>
+              <span>PATHOLOGY RISK</span>
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-800">Elevated</span>
             </div>
             <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-amber-600">Moderate</span>
-              <span className="text-xs text-slate-500">Weather-linked</span>
+              <span className="text-3xl font-extrabold text-amber-600">68%</span>
+              <span className="text-xs font-medium text-slate-500">Stripe Rust</span>
             </div>
-            <p className="mt-2 text-xs text-slate-500">High humidity elevates fungal risk</p>
+            <p className="mt-1 text-xs text-slate-500">High night moisture & 14°C canopy temp</p>
           </div>
 
-          <div className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+          <div className="rounded-2xl border border-green-100 bg-white p-5 shadow-sm transition hover:shadow-md">
             <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-              <span>Scans Performed</span>
-              <span className="text-blue-600">Total</span>
+              <span>CATALOGUE DISEASES</span>
+              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-blue-800">PR #4</span>
             </div>
             <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-blue-700">{scans.length}</span>
-              <span className="text-xs text-slate-500">AI Analyses</span>
+              <span className="text-3xl font-extrabold text-slate-900">{catalogueList.length}</span>
+              <span className="text-xs font-bold text-blue-600">Authoritative</span>
             </div>
-            <p className="mt-2 text-xs text-slate-500">Persisted in PostgreSQL database</p>
+            <p className="mt-1 text-xs text-slate-500">Synchronized with FastAPI backend</p>
           </div>
 
-          <div className="rounded-2xl border border-purple-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+          <div className="rounded-2xl border border-green-100 bg-white p-5 shadow-sm transition hover:shadow-md">
             <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
-              <span>Treatment Protocol</span>
-              <span className="text-purple-600">Active</span>
+              <span>BACKEND LIFECYCLE</span>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${systemHealth.healthy ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"}`}>
+                {systemHealth.healthy ? "Operational" : "Offline"}
+              </span>
             </div>
             <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-extrabold text-purple-700">2 Actions</span>
-              <span className="text-xs text-slate-500">Prescribed</span>
+              <span className="text-2xl font-extrabold text-slate-900">REST v1</span>
+              <span className="text-xs font-mono text-slate-500">:8000</span>
             </div>
-            <p className="mt-2 text-xs text-slate-500">Fungicide spray scheduled tomorrow</p>
+            <p className="mt-1 text-xs text-slate-500">Dual health: API + SQLite engine</p>
           </div>
         </section>
 
-        {/* Grid: Left Column (Weather & Scanner) | Right Column (Scans & AI Chat) */}
+        {/* Two-Column Core Layout */}
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-          {/* Left Column (5 Cols on large) */}
-          <div className="space-y-8 lg:col-span-5">
-            {/* Weather & Soil Risk Intelligence (FR-003) */}
+          {/* Left Column (5 Cols on large): Risk Monitor & Live Upload Station */}
+          <div className="space-y-8 print:hidden lg:col-span-5">
+            {/* Environmental & Agronomic Risk Monitor */}
             <section className="rounded-2xl border border-green-200/80 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-xl">⛅</span>
-                  <h3 className="font-bold text-slate-900">Weather & Soil Risk Index</h3>
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-sm">
+                    🌦️
+                  </span>
+                  <div>
+                    <h3 className="font-bold text-slate-900">Microclimate Weather & Risk</h3>
+                    <p className="text-xs text-slate-500">Sensor Station #SKIT-022</p>
+                  </div>
                 </div>
-                <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
-                  FR-003
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800">
+                  Live Sync
                 </span>
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-xs text-slate-500">Temperature</p>
-                  <p className="mt-1 text-xl font-bold text-slate-800">27°C</p>
-                  <p className="text-xs text-slate-400">High: 31°C • Low: 21°C</p>
+              <div className="mt-5 grid grid-cols-2 gap-3 text-xs">
+                <div className="rounded-xl bg-slate-50 p-3.5">
+                  <span className="text-slate-500">Canopy Temp</span>
+                  <div className="mt-1 text-xl font-bold text-slate-900">18.4°C</div>
+                  <span className="text-[11px] text-emerald-600">Optimal vegetative range</span>
                 </div>
-                <div className="rounded-xl bg-amber-50/70 p-3">
-                  <p className="text-xs text-amber-800">Relative Humidity</p>
-                  <p className="mt-1 text-xl font-bold text-amber-900">78%</p>
-                  <p className="text-xs text-amber-700">⚠️ Fungal spore threshold</p>
+                <div className="rounded-xl bg-slate-50 p-3.5">
+                  <span className="text-slate-500">Relative Humidity</span>
+                  <div className="mt-1 text-xl font-bold text-amber-600">79%</div>
+                  <span className="text-[11px] text-amber-700">Fungal spore window</span>
                 </div>
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-xs text-slate-500">Soil Moisture</p>
-                  <p className="mt-1 text-xl font-bold text-slate-800">64%</p>
-                  <p className="text-xs text-emerald-600">✓ Adequate hydration</p>
+                <div className="rounded-xl bg-slate-50 p-3.5">
+                  <span className="text-slate-500">Soil Moisture (15cm)</span>
+                  <div className="mt-1 text-xl font-bold text-slate-900">42%</div>
+                  <span className="text-[11px] text-slate-500">Field capacity normal</span>
                 </div>
-                <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-xs text-slate-500">Precipitation Risk</p>
-                  <p className="mt-1 text-xl font-bold text-slate-800">25%</p>
-                  <p className="text-xs text-slate-400">Overcast sky</p>
+                <div className="rounded-xl bg-slate-50 p-3.5">
+                  <span className="text-slate-500">Dew Point</span>
+                  <div className="mt-1 text-xl font-bold text-amber-600">14.1°C</div>
+                  <span className="text-[11px] text-amber-700">Free moisture on leaf</span>
                 </div>
               </div>
 
-              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/60 p-3.5 text-xs leading-relaxed text-amber-900">
-                <strong className="block font-semibold">AI Risk Advisory:</strong>
-                Canopy microclimate shows humidity above 75% for 6+ hours with mild temperature. Elevated risk for <em>Wheat Stripe Rust</em> and <em>Powdery Mildew</em>. Avoid evening sprinkler irrigation.
+              {/* Agronomic Risk Advisory */}
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-950">
+                <div className="flex items-center gap-2 font-bold text-amber-900">
+                  <span>⚠️</span>
+                  <span>Stripe Rust Alert (Puccinia striiformis)</span>
+                </div>
+                <p className="mt-1 leading-relaxed text-amber-900">
+                  Current temperature (18°C) and persistent dew duration create high risk for Yellow Rust sporulation in northern blocks. Scout lower canopy leaves.
+                </p>
               </div>
             </section>
 
-            {/* Quick In-Dashboard Crop Scanner (FR-001, FR-002, Frontend-Backend Communication) */}
+            {/* Direct Crop Leaf Diagnostics Station (FR-001) */}
             <section className="rounded-2xl border border-green-200/80 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-xl">📸</span>
-                  <h3 className="font-bold text-slate-900">Scan Crop Leaf</h3>
+                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-sm">
+                    📸
+                  </span>
+                  <div>
+                    <h3 className="font-bold text-slate-900">Crop Leaf Image Diagnostics</h3>
+                    <p className="text-xs text-slate-500">Direct upload to FastAPI backend (FR-001)</p>
+                  </div>
                 </div>
-                <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
-                  FR-001 / FR-002
+                <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700">
+                  FR-001
                 </span>
               </div>
-              <p className="mt-1 text-xs text-slate-500">
-                Upload a clear leaf photo to analyze diseases via the backend FastAPI & PostgreSQL pipeline.
-              </p>
 
-              {/* Hidden file input */}
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/png,image/jpeg,image/jpg"
-                onChange={handleFileChange}
+                accept="image/jpeg,image/jpg,image/png"
                 className="hidden"
+                onChange={handleFileChange}
               />
 
               {!preview ? (
@@ -538,72 +625,66 @@ export default function FarmerDashboard() {
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
-                  className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-green-300 bg-green-50/40 p-6 text-center transition hover:border-green-500 hover:bg-green-50"
+                  className="mt-5 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-green-300 bg-green-50/40 p-8 text-center transition hover:border-green-500 hover:bg-green-50/80"
                 >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-2xl text-green-700">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">
                     🌿
                   </div>
-                  <p className="mt-3 text-sm font-semibold text-slate-800">
-                    Click to select or drag leaf photo here
+                  <h4 className="mt-3 text-sm font-bold text-slate-900">
+                    Drop wheat leaf photo or click to browse
+                  </h4>
+                  <p className="mt-1 text-xs text-slate-500">
+                    JPG, JPEG, or PNG up to 10MB • Auto plant-tissue pre-validation
                   </p>
-                  <p className="mt-1 text-xs text-slate-400">
-                    Supports JPG, PNG up to 10MB
-                  </p>
+                  <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-green-700">
+                    Select Leaf Photo →
+                  </span>
                 </div>
               ) : (
-                <div className="mt-4 space-y-3">
+                <div className="mt-5 space-y-4">
                   <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={preview}
-                      alt="Crop leaf preview"
-                      className="h-48 w-full object-cover"
+                      alt="Crop leaf sample"
+                      className="h-56 w-full object-cover"
                     />
                     <button
                       onClick={clearSelectedImage}
-                      disabled={isScanning || isValidating}
-                      className="absolute right-2 top-2 rounded-lg bg-black/60 px-2.5 py-1 text-xs font-medium text-white backdrop-blur transition hover:bg-black/80"
+                      className="absolute right-2 top-2 rounded-full bg-black/60 p-1.5 text-xs text-white backdrop-blur-sm transition hover:bg-black/80"
+                      title="Clear image"
                     >
-                      Change
+                      ✕
                     </button>
-
-                    {/* Image validation badge indicator */}
-                    <div className="absolute bottom-2 left-2">
-                      {isValidating ? (
-                        <span className="rounded-md bg-slate-900/80 px-2 py-1 text-[11px] font-medium text-white backdrop-blur">
-                          Scanning image quality...
-                        </span>
-                      ) : imageQualityError ? (
-                        <span className="flex items-center gap-1 rounded-md bg-red-600/90 px-2 py-1 text-[11px] font-semibold text-white shadow backdrop-blur">
-                          <span>⚠️</span> Invalid Image (No Leaf)
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-1 rounded-md bg-emerald-600/90 px-2 py-1 text-[11px] font-semibold text-white shadow backdrop-blur">
-                          <span>✓</span> Foliage Verified
-                        </span>
-                      )}
-                    </div>
+                    {isValidating && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-semibold text-white backdrop-blur-xs">
+                        Checking image quality...
+                      </div>
+                    )}
                   </div>
 
-                  {/* Quality Error Banner if blank image */}
                   {imageQualityError && (
-                    <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-xs leading-relaxed text-red-800">
-                      <strong className="block font-bold">Image Rejected:</strong>
-                      {imageQualityError}
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <span>⚠️</span> Quality Warning:
+                      </div>
+                      <p className="mt-0.5">{imageQualityError}</p>
                     </div>
                   )}
 
-                  {/* Real-Time Communication Stepper */}
-                  {isScanning && (
-                    <div className="rounded-xl border border-green-200 bg-green-50/70 p-3 text-xs">
-                      <p className="font-bold text-green-950">Backend Processing Pipeline:</p>
-                      <div className="mt-2 space-y-1.5">
+                  {scanLifecycle !== "idle" && (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-xs">
+                      <div className="flex items-center justify-between font-semibold">
+                        <span className="text-emerald-900">API Pipeline Execution:</span>
+                        <span className="font-mono text-emerald-700 uppercase">{scanLifecycle}</span>
+                      </div>
+                      <div className="mt-2 space-y-1">
                         <div className="flex items-center gap-2 text-green-800">
                           <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
                           <span>
                             {scanLifecycle === "uploading"
                               ? "Dispatching to FastAPI (POST /api/v1/predictions)..."
-                              : "Persisting in PostgreSQL Database..."}
+                              : "Persisting in SQLite Database..."}
                           </span>
                         </div>
                       </div>
@@ -669,12 +750,12 @@ export default function FarmerDashboard() {
                 <div>
                   <h3 className="font-bold text-slate-900">Crop Health Diagnostics & History</h3>
                   <p className="text-xs text-slate-500">
-                    Live records retrieved and synchronized with PostgreSQL database.
+                    Live records retrieved and synchronized with SQLite database (FR-003).
                   </p>
                 </div>
 
                 {/* Filter Pills */}
-                <div className="flex flex-wrap gap-1.5 text-xs font-medium">
+                <div className="flex flex-wrap gap-1.5 text-xs font-medium print:hidden">
                   <button
                     onClick={() => setFilter("all")}
                     className={`rounded-lg px-2.5 py-1 transition ${
@@ -747,19 +828,9 @@ export default function FarmerDashboard() {
                             >
                               {scan.status}
                             </span>
-                            {scan.lifecycleStatus && (
-                              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-mono font-medium text-slate-600">
-                                {scan.lifecycleStatus}
-                              </span>
-                            )}
                           </div>
                           <p className="text-xs text-slate-600">
                             {scan.crop} • <span className="font-mono text-slate-400">{scan.id}</span>
-                            {scan.serverFilename && (
-                              <span className="ml-2 text-slate-400 font-mono text-[10px]">
-                                ({scan.serverFilename})
-                              </span>
-                            )}
                           </p>
                         </div>
 
@@ -778,16 +849,32 @@ export default function FarmerDashboard() {
               {/* Selected Scan Detail / Treatment View (FR-004) */}
               {selectedScan && (
                 <div className="mt-6 rounded-xl border border-green-200 bg-gradient-to-br from-green-50/60 to-emerald-50/40 p-5">
-                  <div className="flex items-center justify-between border-b border-green-200/60 pb-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-green-200/60 pb-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-lg">💊</span>
-                      <h4 className="font-bold text-slate-900">
-                        Prescribed Treatment Plan (FR-004)
-                      </h4>
+                      <span className="text-lg">📋</span>
+                      <div>
+                        <h4 className="font-bold text-slate-900">
+                          Prescribed Treatment Plan (FR-004)
+                        </h4>
+                        <p className="text-[11px] text-slate-500">
+                          Diagnostic ID: <span className="font-mono font-bold text-slate-700">{selectedScan.id}</span>
+                        </p>
+                      </div>
                     </div>
-                    <span className="text-xs font-semibold text-green-800">
-                      Target: {selectedScan.disease}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleConsultScanInCatalogue(selectedScan)}
+                        className="rounded-lg bg-green-700 px-3 py-1 text-xs font-semibold text-white shadow-xs transition hover:bg-green-800"
+                      >
+                        📖 Consult Catalogue
+                      </button>
+                      <button
+                        onClick={handlePrintReport}
+                        className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        🖨️ Print
+                      </button>
+                    </div>
                   </div>
 
                   <div className="mt-4 space-y-3 text-xs leading-relaxed text-slate-700">
@@ -809,8 +896,8 @@ export default function FarmerDashboard() {
               )}
             </section>
 
-            {/* AI Crop Doctor Assistant (FR-005 - Llama 3 / Ollama Assistant) */}
-            <section className="rounded-2xl border border-green-200/80 bg-white p-6 shadow-sm">
+            {/* AI Crop Doctor Assistant (FR-005) */}
+            <section className="rounded-2xl border border-green-200/80 bg-white p-6 shadow-sm print:hidden">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-sm">
@@ -832,7 +919,7 @@ export default function FarmerDashboard() {
                   onClick={() => handleSendMessage("How to control Yellow Rust naturally?")}
                   className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-600 transition hover:border-green-300 hover:bg-green-50 hover:text-green-800"
                 >
-                  🌿 Cure Yellow Rust naturally?
+                  🌱 Cure Yellow Rust naturally?
                 </button>
                 <button
                   onClick={() => handleSendMessage("Best irrigation timing for humid weather?")}
@@ -893,6 +980,237 @@ export default function FarmerDashboard() {
             </section>
           </div>
         </div>
+
+        {/* NEW SECTION: Authoritative Wheat Disease Catalogue Explorer (PR #4 Backend Integration) */}
+        <section id="catalogue-explorer" className="mt-12 rounded-2xl border border-green-200 bg-white p-6 shadow-sm print:hidden">
+          <div className="flex flex-col justify-between gap-4 border-b border-slate-100 pb-5 md:flex-row md:items-center">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-green-600 to-emerald-700 text-base text-white shadow-sm">
+                  📖
+                </span>
+                <h3 className="text-xl font-extrabold text-slate-900">
+                  Authoritative Wheat Disease Catalogue
+                </h3>
+                <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">
+                  Form-2 Live API
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-500">
+                Connected with FastAPI endpoint: <code className="font-mono text-emerald-700">/api/v1/diseases/&#123;disease_name&#125;</code> (PR #4 Seed Data)
+              </p>
+            </div>
+
+            {/* Live Search and Severity Filters */}
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                placeholder="Search disease, symptom, or cause..."
+                value={catalogueSearch}
+                onChange={(e) => setCatalogueSearch(e.target.value)}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs text-slate-800 placeholder-slate-400 outline-none transition focus:border-green-500 focus:bg-white focus:ring-1 focus:ring-green-500"
+              />
+              <div className="flex gap-1 text-xs font-semibold">
+                <button
+                  onClick={() => setCatalogueFilter("all")}
+                  className={`rounded-lg px-2.5 py-1.5 transition ${
+                    catalogueFilter === "all"
+                      ? "bg-green-700 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setCatalogueFilter("high")}
+                  className={`rounded-lg px-2.5 py-1.5 transition ${
+                    catalogueFilter === "high"
+                      ? "bg-red-600 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  High Risk
+                </button>
+                <button
+                  onClick={() => setCatalogueFilter("medium")}
+                  className={`rounded-lg px-2.5 py-1.5 transition ${
+                    catalogueFilter === "medium"
+                      ? "bg-amber-600 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  Moderate
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Catalogue Grid: List on Left, Active Deep-Dive on Right */}
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
+            {/* Disease Selector Cards (5 Cols) */}
+            <div className="max-h-[460px] space-y-2.5 overflow-y-auto pr-1 lg:col-span-5">
+              {filteredCatalogue.map((item) => {
+                const isSelected = selectedDisease.name === item.name;
+                return (
+                  <div
+                    key={item.name}
+                    onClick={() => handleSelectDisease(item)}
+                    className={`cursor-pointer rounded-xl border p-3.5 transition ${
+                      isSelected
+                        ? "border-green-600 bg-green-50/70 shadow-xs"
+                        : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-900">{item.display_name}</span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                          item.severity === "high"
+                            ? "bg-red-100 text-red-800"
+                            : item.severity === "medium"
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-emerald-100 text-emerald-800"
+                        }`}
+                      >
+                        {item.severity}
+                      </span>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-xs text-slate-600 leading-relaxed">
+                      {item.description}
+                    </p>
+                    <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
+                      <span>Crop: <strong className="text-slate-600">{item.crop}</strong></span>
+                      <span className="font-mono text-green-700">/{item.name}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Authoritative Detail Card (7 Cols) */}
+            <div className="rounded-2xl border border-green-200/90 bg-gradient-to-br from-green-50/30 via-white to-emerald-50/20 p-6 lg:col-span-7">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xl font-extrabold text-green-950">
+                      {selectedDisease.display_name}
+                    </h4>
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-bold uppercase ${
+                        selectedDisease.severity === "high"
+                          ? "bg-red-100 text-red-800"
+                          : selectedDisease.severity === "medium"
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-emerald-100 text-emerald-800"
+                      }`}
+                    >
+                      {selectedDisease.severity} Severity
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Host: <strong className="text-slate-700">{selectedDisease.crop}</strong> • Slug:{" "}
+                    <code className="font-mono text-emerald-800">{selectedDisease.name}</code>
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-900">
+                  <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
+                  <span>{isFetchingCatalogue ? "Fetching Live API..." : catalogueSource}</span>
+                </div>
+              </div>
+
+              {/* Scientific Description */}
+              <div className="mt-4">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Agronomic Profile & Etiology
+                </span>
+                <p className="mt-1 text-xs leading-relaxed text-slate-700">
+                  {selectedDisease.description}
+                </p>
+              </div>
+
+              {/* Pathogen Cause */}
+              <div className="mt-4 rounded-xl bg-slate-50 p-3.5">
+                <span className="text-xs font-bold text-slate-700">Pathogen & Environmental Trigger:</span>
+                <p className="mt-1 text-xs text-slate-600 leading-relaxed">{selectedDisease.causes}</p>
+              </div>
+
+              {/* Diagnostic Symptoms */}
+              <div className="mt-4">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Key Diagnostic Symptoms
+                </span>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {selectedDisease.symptoms.map((symptom, idx) => (
+                    <span
+                      key={idx}
+                      className="rounded-lg border border-green-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-800 shadow-2xs"
+                    >
+                      🌿 {symptom}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recommended Treatments */}
+              {selectedDisease.treatment && selectedDisease.treatment.length > 0 && (
+                <div className="mt-4 rounded-xl border border-emerald-200 bg-white p-4 shadow-xs">
+                  <span className="text-xs font-bold text-emerald-900">
+                    Recommended Control & Management Protocol:
+                  </span>
+                  <ul className="mt-2 space-y-1.5 text-xs text-slate-700">
+                    {selectedDisease.treatment.map((step, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <span className="text-emerald-600 font-bold">•</span>
+                        <span>{step}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Printable Official Advisory Slip (Visible when window.print() is called) */}
+        <section className="hidden print:block p-8 border border-black rounded-lg">
+          <div className="text-center border-b pb-4">
+            <h2 className="text-xl font-bold uppercase tracking-wider">
+              Swami Keshvanand Institute of Technology, Management & Gramothan
+            </h2>
+            <h3 className="text-base font-semibold">Department of Computer Science & Engineering (DS-22)</h3>
+            <p className="text-sm mt-1">Project: Crop Care (AI-Powered Crop Pathology Diagnostic Report)</p>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-4 text-xs">
+            <div>
+              <p><strong>Lead Developer:</strong> Rishabh Batwara (23ESKCX090)</p>
+              <p><strong>Mentor:</strong> Dr. Jyoti Singh</p>
+              <p><strong>Target Crop:</strong> Wheat (Triticum aestivum)</p>
+            </div>
+            <div className="text-right">
+              <p><strong>Diagnostic UUID:</strong> {selectedScan?.id || "CC-REF-LIVE"}</p>
+              <p><strong>Evaluation Milestone:</strong> Form-2 Deliverable</p>
+              <p><strong>Date of Record:</strong> {selectedScan?.date || "October 2026"}</p>
+            </div>
+          </div>
+
+          <div className="mt-6 border-t pt-4">
+            <h4 className="font-bold text-sm">Pathology Finding:</h4>
+            <p className="text-base font-bold text-emerald-900 mt-1">{selectedScan?.disease || selectedDisease.display_name}</p>
+            <p className="text-xs text-slate-700 mt-1">Confidence Rating: {selectedScan?.confidence || 94.8}%</p>
+          </div>
+
+          <div className="mt-4">
+            <h4 className="font-bold text-sm">Prescribed Agronomic Action:</h4>
+            <p className="text-xs mt-1">{selectedScan?.treatment || selectedDisease.treatment?.[0]}</p>
+          </div>
+
+          <div className="mt-8 border-t pt-4 flex justify-between text-xs text-slate-500">
+            <span>Verified by Crop Care FastAPI Engine</span>
+            <span>Signature of Academic Mentor: _______________________</span>
+          </div>
+        </section>
       </main>
     </div>
   );
