@@ -185,6 +185,29 @@ export default function FarmerDashboard() {
     }
   };
 
+  // Export diagnostic records as CSV spreadsheet
+  const handleExportCSV = () => {
+    const headers = ["ID", "Crop", "Detected Pathology", "Confidence (%)", "Date", "Severity", "Status", "Treatment Action"];
+    const rows = filteredScans.map((s) => [
+      s.id,
+      `"${s.crop}"`,
+      `"${s.disease}"`,
+      s.confidence,
+      `"${s.date}"`,
+      s.severity,
+      s.status,
+      `"${s.treatment.replace(/"/g, "'")}"`,
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `CropCare_Diagnostics_DS22_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // Print / Export Diagnosis Slip
   const handlePrintReport = () => {
     window.print();
@@ -795,6 +818,14 @@ export default function FarmerDashboard() {
                     }`}
                   >
                     Healthy
+                  </button>
+                  <button
+                    onClick={handleExportCSV}
+                    className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-slate-700 transition hover:bg-slate-50 hover:text-green-700 shadow-2xs"
+                    title="Export records as CSV spreadsheet"
+                  >
+                    <span>📊</span>
+                    <span>Export CSV</span>
                   </button>
                 </div>
               </div>
