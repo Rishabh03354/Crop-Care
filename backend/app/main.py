@@ -27,6 +27,7 @@ from app.database.connection import (
     describe_database,
     ping_database,
 )
+from app.ml.model_loader import ModelLoader
 from app.ml.predictor import CropDiseasePredictor
 from app.repositories.disease_repository import SqlDiseaseRepository
 from app.repositories.prediction_repository import SqlPredictionRepository
@@ -58,7 +59,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     storage: ImageStorage = app.state.storage
 
     storage.ensure_ready()
-    app.state.predictor.warm_up()
+    if settings.model_warmup:
+        await app.state.predictor.warm_up()
 
     logger.info(
         "Starting %s v%s (environment=%s)",
@@ -104,7 +106,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Application singletons.
     # ------------------------------------------------------------------
     storage = ImageStorage(settings.upload_dir)
-    predictor = CropDiseasePredictor()
+    model_loader = ModelLoader(settings)
+    predictor = CropDiseasePredictor(model_loader)
 
     prediction_service = PredictionService(
         repository=SqlPredictionRepository(session_factory),
@@ -129,6 +132,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.engine = engine
     app.state.session_factory = session_factory
     app.state.storage = storage
+    app.state.model_loader = model_loader
     app.state.predictor = predictor
     app.state.prediction_service = prediction_service
     app.state.disease_repository = disease_repository

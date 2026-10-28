@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, File, Path, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, File, Path, UploadFile, status
 
 from app.api.deps import PredictionServiceDep, SettingsDep
 from app.schemas.common import ErrorResponse
@@ -51,6 +51,7 @@ PredictionId = Annotated[
 )
 async def create_prediction(
     image: ImageUpload,
+    background_tasks: BackgroundTasks,
     settings: SettingsDep,
     service: PredictionServiceDep,
 ) -> PredictionCreatedResponse:
@@ -59,6 +60,10 @@ async def create_prediction(
         image, max_size_bytes=settings.max_upload_size_bytes
     )
     record = await service.create_prediction(validated)
+    background_tasks.add_task(
+        service.process_prediction,
+        record.prediction_id,
+    )
     return PredictionCreatedResponse(
         prediction_id=record.prediction_id,
         status=record.status,

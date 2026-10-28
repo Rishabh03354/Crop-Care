@@ -31,10 +31,12 @@ alembic/versions/__pycache__/
 # --- Uploaded images and ML models (never commit user data / large binaries) ---
 /storage/
 ml_models/
+model_artifacts/
 *.pt
 *.pth
 *.onnx
 *.h5
+model_manifest.local.json
 
 # --- Editors / OS ---
 .idea/
