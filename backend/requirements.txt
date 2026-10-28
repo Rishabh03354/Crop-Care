@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Crop Care Crop — backend dependencies (Database Integration milestone)
+# Crop Care Crop — backend dependencies (Database & ML Integration milestone)
 # Install:  pip install -r requirements.txt
 # ---------------------------------------------------------------------------
 
@@ -21,15 +21,15 @@ pytest-asyncio>=0.24,<2.0            # runs `async def test_*` without boilerpla
 httpx>=0.27,<1.0                     # required by fastapi.testclient
 
 # ---------------------------------------------------------------------------
-# Reserved for later milestones — uncomment when the corresponding task starts:
+# Reserved for ML inference & Chatbot — uncomment when live weights are provided:
 #
-# ML Integration:
-#   torch>=2.3
-#   torchvision>=0.18
+# ML Inference (TorchScript / PyTorch runtime):
+#   torch>=2.4,<3.0
+#   torchvision>=0.19,<1.0
+#   pillow>=10.4,<12.0
+#   numpy>=1.26,<3.0
 #   ultralytics>=8.2
 #   opencv-python-headless>=4.10
-#   pillow>=10.4
-#   numpy>=1.26
 #   scikit-learn>=1.5
 #
 # Chatbot Integration:
