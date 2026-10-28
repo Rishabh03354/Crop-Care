@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     database_url: str = ""
     db_echo: bool = False
 
+    # --- Machine-learning inference configuration ---
+    # Leave both paths empty to keep inference disabled.
+    model_artifact_path: str = ""
+    model_manifest_path: str = ""
+    model_device: str = "cpu"
+    model_warmup: bool = True
+
     @property
     def cors_origin_list(self) -> list[str]:
         """`cors_origins` parsed into a list, ready for CORSMiddleware."""
