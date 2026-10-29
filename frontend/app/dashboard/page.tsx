@@ -97,6 +97,7 @@ export default function FarmerDashboard() {
 
   // Scanner state
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [riskTab, setRiskTab] = useState<"weather" | "soil" | "history">("weather");
   const [preview, setPreview] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
@@ -354,13 +355,17 @@ export default function FarmerDashboard() {
       let botResponse = "Our agronomy model recommends scouting leaf undersides and ensuring soil aeration under current weather conditions.";
       const lower = text.toLowerCase();
       if (lower.includes("rust") || lower.includes("yellow")) {
-        botResponse = "For Wheat Stripe Rust: Recommended chemical spray is Propiconazole 25% EC (1ml/L) or Tebuconazole. As an organic remedy, apply 5% Neem extract and maintain proper row ventilation.";
+        botResponse = "For Wheat Stripe Rust (Yellow Rust): Apply Propiconazole 25% EC (1ml/L) or Tebuconazole 25.9% EC. Organic alternative: 5% Neem Seed Kernel Extract (NSKE) + Trichoderma viride. Because current canopy humidity is 79%, inspect lower foliage daily.";
+      } else if (lower.includes("soil") || lower.includes("nitrogen") || lower.includes("ph") || lower.includes("nutrient")) {
+        botResponse = "Soil Analysis Insight (FR-003): Current soil pH 6.8 is neutral/ideal. However, Nitrogen is elevated at 195 kg/ha, causing lush soft tissues that invite foliar fungi. Supplement with Potassium (MOP @ 25 kg/ha) to thicken epidermal cell walls against spore ingress.";
+      } else if (lower.includes("history") || lower.includes("sector") || lower.includes("recurrence")) {
+        botResponse = "Farm History Risk (FR-003): Sector 4 recorded a 40% Stripe Rust incidence during Rabi 2025. Airborne fungal urediniospores can re-establish if microclimate humidity remains above 75%. Prior infection raises this season's baseline risk factor to 1.35x.";
+      } else if (lower.includes("weather") || lower.includes("humidity") || lower.includes("dew")) {
+        botResponse = "Microclimate Weather Alert (FR-003): Temperature (18.4°C) coupled with 79% relative humidity and 14.1°C dew point provides a prime 6-8 hour leaf wetness window for fungal germination. Avoid evening irrigation.";
       } else if (lower.includes("irrigation") || lower.includes("water")) {
-        botResponse = "Given current high humidity (78%), avoid late-evening flood irrigation to prevent moisture buildup in the canopy. Morning drip irrigation is optimal.";
-      } else if (lower.includes("fertilizer") || lower.includes("nitrogen")) {
-        botResponse = "Excess nitrogen increases vulnerability to fungal pathogens. Balance with potassium (MOP) and phosphorus (DAP) during early grain filling.";
+        botResponse = "Given current high humidity (79%) and wet canopy conditions, avoid late-evening flood irrigation. Morning drip irrigation maintains soil moisture (42%) without prolonging foliar wetness.";
       } else if (lower.includes("mildew") || lower.includes("powdery")) {
-        botResponse = "Powdery Mildew thrives in dry leaves with high relative humidity. Spray wettable sulfur @ 2g/L or potassium bicarbonate (5g/L).";
+        botResponse = "Powdery Mildew thrives in moderate warmth with high relative humidity. Spray wettable sulfur @ 2g/L water or potassium bicarbonate (5g/L) as an organic alternative.";
       }
 
       setChatMessages((prev) => [
@@ -566,7 +571,7 @@ export default function FarmerDashboard() {
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
           {/* Left Column (5 Cols on large): Risk Monitor & Live Upload Station */}
           <div className="space-y-8 print:hidden lg:col-span-5">
-            {/* Environmental & Agronomic Risk Monitor */}
+            {/* Environmental & Agronomic Risk Monitor (FR-003: Weather + Soil + Farm History) */}
             <section className="rounded-2xl border border-green-200/80 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -574,46 +579,140 @@ export default function FarmerDashboard() {
                     🌦️
                   </span>
                   <div>
-                    <h3 className="font-bold text-slate-900">Microclimate Weather & Risk</h3>
-                    <p className="text-xs text-slate-500">Sensor Station #SKIT-022</p>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-slate-900">Multi-Factor Risk Predictor</h3>
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                        FR-003
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500">Weather + Soil Report + Farm History</p>
                   </div>
                 </div>
-                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800">
-                  Live Sync
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                  Station #SKIT-022
                 </span>
               </div>
 
-              <div className="mt-5 grid grid-cols-2 gap-3 text-xs">
-                <div className="rounded-xl bg-slate-50 p-3.5">
-                  <span className="text-slate-500">Canopy Temp</span>
-                  <div className="mt-1 text-xl font-bold text-slate-900">18.4°C</div>
-                  <span className="text-[11px] text-emerald-600">Optimal vegetative range</span>
-                </div>
-                <div className="rounded-xl bg-slate-50 p-3.5">
-                  <span className="text-slate-500">Relative Humidity</span>
-                  <div className="mt-1 text-xl font-bold text-amber-600">79%</div>
-                  <span className="text-[11px] text-amber-700">Fungal spore window</span>
-                </div>
-                <div className="rounded-xl bg-slate-50 p-3.5">
-                  <span className="text-slate-500">Soil Moisture (15cm)</span>
-                  <div className="mt-1 text-xl font-bold text-slate-900">42%</div>
-                  <span className="text-[11px] text-slate-500">Field capacity normal</span>
-                </div>
-                <div className="rounded-xl bg-slate-50 p-3.5">
-                  <span className="text-slate-500">Dew Point</span>
-                  <div className="mt-1 text-xl font-bold text-amber-600">14.1°C</div>
-                  <span className="text-[11px] text-amber-700">Free moisture on leaf</span>
-                </div>
+              {/* 3-Way Sub-Tabs for FR-003 */}
+              <div className="mt-4 flex rounded-xl bg-slate-100 p-1 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setRiskTab("weather")}
+                  className={`flex-1 rounded-lg py-1.5 transition ${
+                    riskTab === "weather"
+                      ? "bg-white text-green-900 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  🌤️ Weather
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRiskTab("soil")}
+                  className={`flex-1 rounded-lg py-1.5 transition ${
+                    riskTab === "soil"
+                      ? "bg-white text-green-900 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  🧪 Soil Report
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRiskTab("history")}
+                  className={`flex-1 rounded-lg py-1.5 transition ${
+                    riskTab === "history"
+                      ? "bg-white text-green-900 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  📜 Farm History
+                </button>
               </div>
 
-              {/* Agronomic Risk Advisory */}
-              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-950">
-                <div className="flex items-center gap-2 font-bold text-amber-900">
-                  <span>⚠️</span>
-                  <span>Stripe Rust Alert (Puccinia striiformis)</span>
+              {/* Tab 1: Weather Microclimate */}
+              {riskTab === "weather" && (
+                <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                  <div className="rounded-xl bg-slate-50 p-3.5">
+                    <span className="text-slate-500">Canopy Temp</span>
+                    <div className="mt-1 text-xl font-bold text-slate-900">18.4°C</div>
+                    <span className="text-[11px] text-emerald-600">Optimal vegetative range</span>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-3.5">
+                    <span className="text-slate-500">Relative Humidity</span>
+                    <div className="mt-1 text-xl font-bold text-amber-600">79%</div>
+                    <span className="text-[11px] text-amber-700">Fungal spore window</span>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-3.5">
+                    <span className="text-slate-500">Soil Moisture (15cm)</span>
+                    <div className="mt-1 text-xl font-bold text-slate-900">42%</div>
+                    <span className="text-[11px] text-slate-500">Field capacity normal</span>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-3.5">
+                    <span className="text-slate-500">Dew Point</span>
+                    <div className="mt-1 text-xl font-bold text-amber-600">14.1°C</div>
+                    <span className="text-[11px] text-amber-700">Free moisture on leaf</span>
+                  </div>
                 </div>
-                <p className="mt-1 leading-relaxed text-amber-900">
-                  Current temperature (18°C) and persistent dew duration create high risk for Yellow Rust sporulation in northern blocks. Scout lower canopy leaves.
+              )}
+
+              {/* Tab 2: Soil Health & Nutrient Analysis */}
+              {riskTab === "soil" && (
+                <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                  <div className="rounded-xl bg-slate-50 p-3.5">
+                    <span className="text-slate-500">Soil pH</span>
+                    <div className="mt-1 text-xl font-bold text-emerald-700">6.8 pH</div>
+                    <span className="text-[11px] text-emerald-600">Neutral (Wheat optimal)</span>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-3.5">
+                    <span className="text-slate-500">Available Nitrogen (N)</span>
+                    <div className="mt-1 text-xl font-bold text-amber-600">195 kg/ha</div>
+                    <span className="text-[11px] text-amber-700">Elevated (Rust susceptible)</span>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-3.5">
+                    <span className="text-slate-500">Phosphorus (P₂O₅)</span>
+                    <div className="mt-1 text-xl font-bold text-slate-900">22 kg/ha</div>
+                    <span className="text-[11px] text-slate-500">Adequate root strength</span>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 p-3.5">
+                    <span className="text-slate-500">Potassium (K₂O)</span>
+                    <div className="mt-1 text-xl font-bold text-slate-900">210 kg/ha</div>
+                    <span className="text-[11px] text-emerald-600">Good cell wall resilience</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 3: Farm Plot History */}
+              {riskTab === "history" && (
+                <div className="mt-4 space-y-2 rounded-xl bg-slate-50 p-3.5 text-xs text-slate-700">
+                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                    <span className="font-bold text-slate-900">Sector 4 Plot Profile</span>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                      Recurrence Risk: 1.35x
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    <strong>Rabi 2025:</strong> Yellow Rust recorded across 3.2 acres. Treated with Propiconazole 25% EC on Nov 14, 2025. Residual urediniospore reservoir potential identified.
+                  </p>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    <strong>Previous Crop:</strong> Moong Bean (Green Gram) rotation completed. Organic matter enhanced to 0.58%.
+                  </p>
+                </div>
+              )}
+
+              {/* Agronomic Risk Advisory Synthesis */}
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-950">
+                <div className="flex items-center justify-between font-bold text-amber-900">
+                  <div className="flex items-center gap-1.5">
+                    <span>⚠️</span>
+                    <span>Composite Alert: Stripe Rust Risk (68%)</span>
+                  </div>
+                  <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-bold text-amber-900">
+                    FMEA Prior
+                  </span>
+                </div>
+                <p className="mt-1.5 leading-relaxed text-amber-900">
+                  Weather humidity (79%) + Elevated soil Nitrogen (195 kg/ha) + Sector 4 prior rust history increase sporulation probability. Scout lower canopy tiers and consider preventive bio-fungicide.
                 </p>
               </div>
             </section>
@@ -953,10 +1052,16 @@ export default function FarmerDashboard() {
                   🌱 Cure Yellow Rust naturally?
                 </button>
                 <button
-                  onClick={() => handleSendMessage("Best irrigation timing for humid weather?")}
+                  onClick={() => handleSendMessage("How does soil nitrogen affect crop disease risk?")}
                   className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-600 transition hover:border-green-300 hover:bg-green-50 hover:text-green-800"
                 >
-                  💧 Irrigation timing in humidity?
+                  🌾 Soil Nitrogen & disease risk?
+                </button>
+                <button
+                  onClick={() => handleSendMessage("What does our farm history say about recurrence risk?")}
+                  className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-600 transition hover:border-green-300 hover:bg-green-50 hover:text-green-800"
+                >
+                  📋 Farm history risk factor?
                 </button>
                 <button
                   onClick={() => handleSendMessage("Safe fungicide dosage for wheat?")}
