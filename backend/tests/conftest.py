@@ -49,6 +49,9 @@ def app_settings(tmp_path: Path) -> Settings:
         database_url=f"sqlite:///{db_path}",
         upload_dir=tmp_path / "uploads",
         max_upload_size_mb=1,
+        model_artifact_path="",
+        model_manifest_path="",
+        model_warmup=False,
     )
 
 
