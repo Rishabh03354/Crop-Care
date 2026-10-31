@@ -17,7 +17,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 # -------------------------------------------------------------
 COLLEGE_NAME = "Swami Keshvanand Institute of Technology,Management & Gramothan, Jaipur"
 DEPARTMENT_NAME = "Department of Computer Science & Engineering"
-REPO_NAME = "crop-care"
+REPO_NAME = "SKIT-DS-2023-2027-022"
 
 # The 4 designated team members - no one else will appear in the report
 TEAM_MEMBERS = [
@@ -47,7 +47,7 @@ def get_repo_info(override_repo=None):
     elif REPO_NAME:
         repo_name = REPO_NAME
     else:
-        repo_name = "crop-care"
+        repo_name = "SKIT-DS-2023-2027-022"
         try:
             root_path = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], encoding='utf-8').strip()
             repo_name = os.path.basename(root_path)
@@ -462,7 +462,7 @@ def generate_pdf(interval="weekly", as_of_date=None, output_dir="weekly_reports"
 if __name__ == "__main__":
     arg = sys.argv[1].lower() if len(sys.argv) > 1 else "weekly"
     if arg in ["all", "last3", "last-3"]:
-        target_dates = ["2026-09-26", "2026-10-01", "2026-10-08"]
+        target_dates = ["2026-10-15", "2026-10-22", "2026-10-29"]
         for d in target_dates:
             generate_pdf("weekly", as_of_date=d)
     elif len(arg) == 10 and arg.count('-') == 2:
