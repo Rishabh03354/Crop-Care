@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 _IMAGE_UNAVAILABLE = "IMAGE_UNAVAILABLE"
 _MODEL_INFERENCE_ERROR = "MODEL_INFERENCE_ERROR"
+_PERSISTENCE_ERROR = "PERSISTENCE_ERROR"
 
 
 class PredictionService:
@@ -51,11 +52,17 @@ class PredictionService:
         """Persist a validated upload and create a pending prediction."""
         try:
             if hasattr(image, "data") and hasattr(image, "extension"):
-                stored_filename = await run_in_threadpool(
-                    self._image_storage.save,
-                    image.data,
-                    image.extension,
-                )
+                try:
+                    stored_filename = await run_in_threadpool(
+                        self._image_storage.save,
+                        image.data,
+                        image.extension,
+                    )
+                except TypeError:
+                    stored_filename = await run_in_threadpool(
+                        self._image_storage.save,
+                        image,
+                    )
             else:
                 stored_filename = await run_in_threadpool(
                     self._image_storage.save,
@@ -128,7 +135,7 @@ class PredictionService:
             )
             return
 
-        if record.status is not PredictionStatus.PENDING:
+        if record.status != PredictionStatus.PENDING:
             return
 
         try:
@@ -232,6 +239,12 @@ class PredictionService:
                 prediction_id,
                 type(exc).__name__,
             )
+            # Best-effort recovery so a transient update failure does not
+            # leave the record indefinitely in the processing state.
+            await self._mark_failed(
+                processing_record,
+                _PERSISTENCE_ERROR,
+            )
 
     async def _mark_failed(
         self,
@@ -241,6 +254,7 @@ class PredictionService:
         failed_record = replace(
             record,
             status=PredictionStatus.FAILED,
+            crop=None,
             disease=None,
             confidence=None,
             error_code=error_code,
@@ -263,6 +277,7 @@ class PredictionService:
         pending_record = replace(
             record,
             status=PredictionStatus.PENDING,
+            crop=None,
             disease=None,
             confidence=None,
             error_code=None,
