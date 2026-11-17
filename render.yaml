@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: crop-care-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt && python -c "from app.database.connection import create_db_engine; from app.database.base import Base; import app.models; Base.metadata.create_all(create_db_engine())" && python -m scripts.seed_diseases data/wheat_diseases.json
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:///./cropcare.db
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: ENVIRONMENT
+        value: production
